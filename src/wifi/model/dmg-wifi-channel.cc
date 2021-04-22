@@ -79,7 +79,9 @@ DmgWifiChannel::DmgWifiChannel ()
     m_packetDropper (0),
     m_experimentalMode (false),
     m_SVChannel (false),
-    m_TGadChannel (false)
+    m_TGadChannel (false),
+    m_reflectorDenseMode (1),
+    m_obsDensity (0)
 {
   NS_LOG_FUNCTION (this);
 }
@@ -218,6 +220,423 @@ DmgWifiChannel::UpdateSignalStrengthValue (void)
   Simulator::Schedule (m_updateFrequency, &DmgWifiChannel::UpdateSignalStrengthValue, this);
 }
 
+
+/* Saleh-Valenzuela Channel for 60 GHz 802.11ad indoor scenario */
+double 
+DmgWifiChannel::SVChannelGain(int reflectorDenseMode, Ptr<DmgWifiPhy> sender, Ptr<DmgWifiPhy> receiver, double txPowerDbm, double obsDensity) const
+{
+
+  int lambda_K; // cluster density
+  int lambda_ray; // density of rays within each cluster
+  uint16_t granularity = 10;
+  double G_sv = 0.0; // return value
+  bool obsRel = false;
+ 
+  // based on the assumption of very narrow beams of the directional antennas
+  lambda_K = 2; 
+  lambda_ray = 6;
+  /*
+  if (reflectorDenseMode == 1) // lower density of highly-reflective objects in the room
+  	{
+  	  lambda_K = 3;
+	  lambda_ray = 10;
+  	}
+  else if (reflectorDenseMode == 2) // medium density of highly-reflective objects in the room
+    {
+  	  lambda_K = 5;
+	  lambda_ray = 20;
+  	}
+  else // higher density of highly-reflective objects in the room
+    {
+  	  lambda_K = 7;
+	  lambda_ray = 30;
+    }
+  */
+  // Poisson point process cluster/ray number identification
+  // 1) cluster
+  double lambda = lambda_K*1.0/(granularity*granularity);
+  // std::cerr << "LK " << lambda_K << " lambda " << lambda << std::endl;
+  double poissonProb = exp (-lambda)*lambda;
+  // std::cerr << "ProPP " << poissonProb << std::endl;
+  int num_cluster = 0;
+  for (uint16_t t=0; t<granularity*granularity; t++)
+    {
+       // RngSeedManager::SetSeed (2); // random seed setting
+       Ptr<UniformRandomVariable> clusterNoUV = CreateObject<UniformRandomVariable> ();
+       clusterNoUV->SetAttribute ("Min", DoubleValue (0.0));
+       clusterNoUV->SetAttribute ("Max", DoubleValue (1.0));
+       double probability = clusterNoUV->GetValue ();
+	   // std::cerr << "Pro " << probability << std::endl;
+	   
+       if (probability < poissonProb)
+  	    {
+  	  	   num_cluster++;
+  	    }
+  	}
+  if (num_cluster < 1)
+  	{
+  	   num_cluster = 1;
+  	}
+  // 2) ray
+  lambda = lambda_ray*1.0/(granularity*granularity);
+  poissonProb = exp (-lambda)*lambda;
+  int num_ray = 0;
+  for (uint16_t t=0; t<granularity*granularity; t++)
+    {
+       RngSeedManager::SetSeed (2); // random seed setting
+       Ptr<UniformRandomVariable> rayNoUV = CreateObject<UniformRandomVariable> ();
+       rayNoUV->SetAttribute ("Min", DoubleValue (0.0));
+       rayNoUV->SetAttribute ("Max", DoubleValue (1.0));
+       double probability = rayNoUV->GetValue ();
+	   
+       if (probability < poissonProb)
+  	    {
+  	  	   num_ray++;
+  	    }
+  	}
+  if (num_ray < 1)
+  	{
+  	   num_ray = 1;
+  	}
+
+  // std::cerr << "num_cluster " << num_cluster << " number_ray " << num_ray << std::endl;
+  
+  // ------ Default setting ------
+  Ptr<MobilityModel> senderMobility = sender->GetMobility ();
+  // NS_ASSERT (senderMobility != 0);
+  // uint32_t j = 0; /* Phy ID */
+  Vector sender_pos = senderMobility->GetPosition ();
+  // Ptr<DirectionalAntenna> senderAnt = sender->GetDirectionalAntenna ();
+  Ptr<Codebook> senderCodebook = sender->GetCodebook ();
+  // Ptr<Directional60GhzAntenna> senderAnt60ghz = CreateObject<Directional60GhzAntenna> ();
+  // double rxPowerDbm;
+  // Time delay; /* Propagation delay of the signal */
+  Ptr<MobilityModel> receiverMobility;
+  receiverMobility = receiver->GetMobility ()->GetObject<MobilityModel> ();
+  double azimuthTx = CalculateAzimuthAngle (sender_pos, receiverMobility->GetPosition ());
+  double azimuthRx = CalculateAzimuthAngle (receiverMobility->GetPosition (), sender_pos);
+  // Antenna gain, get from IEEE 802.11ad direction antenna model
+  // double ref_dB_bias = 0.0;
+  double Gtx_dB = 23.18; // init, 17.59; // 14.58 (32 antenna array); very narrow beam,64 antenna array of AP, based on "Capacity of Multi-Connectivity mmWave Systems with Dynamic Blockage and Directional Antennas"
+  double Grx_dB = 0.0; // init, 7.20; // 5.57; // 4 antenna array of client device
+  // double Gtx_dB = senderCodebook->GetTxGainDbi (azimuthTx);
+  // double Grx_dB = receiver->GetCodebook ()->GetRxGainDbi (azimuthRx);
+  double Gtx_dB_ref = senderCodebook->GetTxGainDbi (azimuthTx); // Gtx_dB;  // senderAnt->GetTxGainDbi (azimuthTx) - ref_dB_bias;
+  /*
+  Gtx_dB_ref = max(Gtx_dB_ref, Gtx_dB);
+  if (Gtx_dB_ref < 0)
+  	{
+  	   Gtx_dB_ref = 0;
+    }
+  */
+  // double Grx_dB_ref = receiver->GetDirectionalAntenna ()->GetRxGainDbi (azimuthRx);
+  double Grx_dB_ref = receiver->GetCodebook ()->GetRxGainDbi (azimuthRx);
+  // Grx_dB_ref = max(Grx_dB_ref, Grx_dB); // just for test
+  double Gtx = std::pow(10.0,Gtx_dB/10);
+  double Grx = std::pow(10.0,Grx_dB/10);
+  double Gtx_ref = std::pow(10.0,Gtx_dB_ref/10);
+  double Grx_ref = std::pow(10.0,Grx_dB_ref/10);
+
+  // std::cerr << "Gtx" << Gtx_dB << " Grx" << Grx_dB << std::endl;
+  
+  // frequecy and wavelength
+  double f_mm = 60; // GHz
+  double lambda_w = 3.0e8/(f_mm*1.0e9);
+  // heights of sender and receiver
+  double h1 = sender_pos.z;
+  Vector receiver_pos = receiverMobility->GetPosition ();
+  double h2 = receiver_pos.z;
+
+  // seperation distance between tranceiver
+  double L = CalculateDistance(sender_pos, receiver_pos);
+
+  // LoS status, 0 -- Line of Sight, 1 -- NLoS
+  bool LoSStatus =  m_scenario->GetFadingInfo(sender_pos, receiverMobility->GetPosition ()).first;
+
+  // penetration loss + shadowing variable (only for NLoS case)
+  // double X_pen_dB = m_scenario->GetFadingInfo(sender_pos, receiverMobility->GetPosition ()).second;
+
+  // reflection coefficient (determined by reflection density mode)
+  double mean_r0, var_r0;
+  if (reflectorDenseMode == 1) // lower density of highly-reflective objects in the room
+  	{
+  	  mean_r0 = 0.35;
+	  var_r0 = 0.05;
+  	}
+  else if (reflectorDenseMode == 2) // medium density of highly-reflective objects in the room
+    {
+  	  mean_r0 = 0.6; // 0.6;
+	  var_r0 = 0.05;
+  	}
+  else // higher density of highly-reflective objects in the room
+    {
+  	  mean_r0 = 0.85;
+	  var_r0 = 0.05; // 0.05
+    }
+  //follow the truncated normal distribution
+  // RngSeedManager::SetSeed (2);
+  Ptr<NormalRandomVariable> reff = CreateObject<NormalRandomVariable> ();
+  reff->SetAttribute ("Mean", DoubleValue (mean_r0));
+  reff->SetAttribute ("Variance", DoubleValue (var_r0));
+  double R0 = reff->GetValue ();
+  // in case beyond 0~1, or deviate the mean so far
+  double rth = 0.2;
+  if (R0 < 0 || R0 > 1 || (R0 -mean_r0) >= rth || (mean_r0 - R0) >= rth)
+  	{
+  	  R0 = mean_r0;
+  	}
+  
+
+
+  // the square of two-path response
+  double d1 = std::sqrt((h2-h1)*(h2-h1) + L*L);
+  double d2 = std::sqrt((h2+h1)*(h2+h1) + L*L);
+  double phi_r = 2*PI/lambda_w * (d2-d1);
+
+  double rou_a = std::sqrt(Gtx*Grx);
+
+  // determine rou_b
+  double strongRefProb = obsDensity;
+  double coeff = 1.53; // based on the experiment (DYB'21) 3.0/2; // 2/3;
+  // RngSeedManager::SetSeed (2);
+  Ptr<UniformRandomVariable> sFprob = CreateObject<UniformRandomVariable> ();
+  sFprob->SetAttribute ("Min", DoubleValue (0.0));
+  sFprob->SetAttribute ("Max", DoubleValue (1.0));
+  double rdP = sFprob->GetValue ();
+  double rou_b;
+  if (obsRel == false)
+  	{
+  	  strongRefProb = 1.0;
+	  coeff = 1.0; // turn off the reflection probability measurement
+  	}
+  if(rdP <= strongRefProb*coeff)
+  	{
+  	   rou_b = std::sqrt(Gtx_ref*Grx_ref)*R0;
+  	}
+  else
+  	{
+       // RngSeedManager::SetSeed (2);
+       Ptr<NormalRandomVariable> reff_loss = CreateObject<NormalRandomVariable> ();
+  	   reff_loss->SetAttribute ("Mean", DoubleValue (-10.0)); // Alexander Maltsev's experiment
+       reff_loss->SetAttribute ("Variance", DoubleValue (5.0)); // Alexander Maltsev's experiment
+       double Rl_dB = reff_loss->GetValue ();
+	   if ((Rl_dB > 0) || (Rl_dB < -20.0)) // in case of generating inf values
+	   	{
+	   	   Rl_dB = -10.0;
+	   	}
+       double Rl_val = std::pow(10.0,Rl_dB/10);
+	   rou_b = std::sqrt(Gtx_ref*Grx_ref)*Rl_val;
+  	}
+  
+  double rou_2 = (rou_a+rou_b*std::sin(phi_r))*(rou_a+rou_b*std::sin(phi_r)) + (rou_b*std::cos(phi_r))*(rou_b*std::cos(phi_r));
+  double rou_ref_2 = rou_b*rou_b;
+  double rou2; // LoS or strongest reflection gain
+  // std::cerr << "rou_LoS " << rou_2 << " rou_NLoS " << rou_ref_2 << std::endl;
+  if (LoSStatus == LINE_OF_SIGHT)
+  	{
+  	  rou2 = rou_2;
+  	}
+  else
+  	{
+  	  rou2 = rou_ref_2;
+  	}
+
+  
+  // The average tap weights
+  std::vector<std::vector<double> > E_tap_W(num_cluster, std::vector<double>(num_ray)); // init as all zeros 
+
+  // 1) path power gain of the cluster
+  double d = L;
+  double Omg_0_dB;
+  if (LoSStatus == LINE_OF_SIGHT)
+  	{
+  	  Omg_0_dB = 3.46*d - 30.4;
+  	}
+  else
+  	{
+  	  Omg_0_dB = 4.44*d - 37.4;
+  	}
+  // double Omg_0 = std::pow(10,Omg_0_dB/10);
+
+  // 2) cluster power-decay time constants
+  double Gamma = 22.3;
+  if (LoSStatus == LINE_OF_SIGHT)
+  	{
+  	  Gamma = 22.3; // ns
+  	}
+  else
+  	{
+  	  Gamma = 21.1; // ns
+  	}
+
+  double t_cluster_cur = 0; // current arrival time of the cluster
+  for (int i = 0; i < num_cluster; ++i)
+  	{
+  	   double T_l_interval = 0.0;
+	   RngSeedManager::SetSeed (2); // random seed setting
+  	   // 3) the cluster arrival time
+  	   if (LoSStatus == LINE_OF_SIGHT)
+  	     {
+  	        // exponatial decay distribution
+  	        Ptr<ExponentialRandomVariable> tlv = CreateObject<ExponentialRandomVariable> ();
+  			tlv->SetAttribute ("Mean", DoubleValue (0.047)); // ns
+  			tlv->SetAttribute ("Bound", DoubleValue (1.0)); // ns
+  			T_l_interval = tlv->GetValue (); // ns
+  	     }
+       else
+  	     {
+  	        // exponatial decay distribution
+  	        Ptr<ExponentialRandomVariable> tlv = CreateObject<ExponentialRandomVariable> ();
+  			tlv->SetAttribute ("Mean", DoubleValue (0.037)); // ns
+  			tlv->SetAttribute ("Bound", DoubleValue (1.0)); // ns
+  			T_l_interval = tlv->GetValue (); // ns
+  	     }
+	   double T_l = t_cluster_cur;
+	   t_cluster_cur = t_cluster_cur + T_l_interval;
+
+	   // 4) ray power-decay time constants
+	   double gamma_pre = 4; // ns
+  	   double gamma_post = 5.4; // ns
+	   if (LoSStatus == LINE_OF_SIGHT)
+  		{
+  	  	   gamma_pre = 4; // ns
+  	  	   gamma_post = 5.4; // ns
+  		}
+  	   else
+  		{
+  	       gamma_pre = 3.9; // ns
+  	       gamma_post = 4.5; //ns
+  		}
+
+	   // 5) the Ricean factor introduced to improve the fit of the model into the experimental data
+	   double K_r_dB_pre;
+  	   double K_r_dB_post;
+	   if (LoSStatus == LINE_OF_SIGHT)
+  		{
+  	  	  K_r_dB_pre = 11.5; // ns
+  	  	  K_r_dB_post = 8.4; // ns
+  		}
+  	   else
+  		{
+  	      K_r_dB_pre = 3.3; // ns
+  	  	  K_r_dB_post = 8.9; // ns
+  		}
+	   // double K_r_pre = std::pow(10,K_r_dB_pre/10);
+
+	   // current arrival time of the ray
+	   double t_ray_cur = t_cluster_cur;
+
+	   // choose the central ray
+	   Ptr<UniformRandomVariable> centralRayID = CreateObject<UniformRandomVariable> ();
+       centralRayID->SetAttribute ("Min", DoubleValue (0.0));
+       centralRayID->SetAttribute ("Max", DoubleValue (num_ray-0.01));
+       uint16_t j_central = floor(centralRayID->GetValue ()); 
+
+	   for (int j = 0; j < num_ray; ++j)
+	   	{
+	   	   // 6) the ray's arrival time
+	   	   double t_l_interval_pre = 0.0;
+		   double t_l_interval_post = 0.0;
+		   if (LoSStatus == LINE_OF_SIGHT)
+  	     	{
+  	           // exponatial decay distribution
+  	           Ptr<ExponentialRandomVariable> tlv_ray_pre = CreateObject<ExponentialRandomVariable> ();
+  			   tlv_ray_pre->SetAttribute ("Mean", DoubleValue (0.5)); // ns
+  			   tlv_ray_pre->SetAttribute ("Bound", DoubleValue (10.0)); // ns
+  			   t_l_interval_pre = tlv_ray_pre->GetValue (); // ns
+
+			   Ptr<ExponentialRandomVariable> tlv_ray_post = CreateObject<ExponentialRandomVariable> ();
+  			   tlv_ray_post->SetAttribute ("Mean", DoubleValue (0.5)); // ns
+  			   tlv_ray_post->SetAttribute ("Bound", DoubleValue (10.0)); // ns
+  			   t_l_interval_post = tlv_ray_post->GetValue (); // ns
+  	        }
+       	   else
+  	     	{
+  	           // exponatial decay distribution
+  	           Ptr<ExponentialRandomVariable> tlv_ray_pre = CreateObject<ExponentialRandomVariable> ();
+  			   tlv_ray_pre->SetAttribute ("Mean", DoubleValue (0.7)); // ns
+  			   tlv_ray_pre->SetAttribute ("Bound", DoubleValue (10.0)); // ns
+  			   t_l_interval_pre = tlv_ray_pre->GetValue (); // ns
+
+			   Ptr<ExponentialRandomVariable> tlv_ray_post = CreateObject<ExponentialRandomVariable> ();
+  			   tlv_ray_post->SetAttribute ("Mean", DoubleValue (1.2)); // ns
+  			   tlv_ray_post->SetAttribute ("Bound", DoubleValue (10.0)); // ns
+  			   t_l_interval_post = tlv_ray_post->GetValue (); // ns
+  	     	}
+
+		   // pre cursor
+		   double t_l;
+		   if (j < j_central)
+		   	{
+		   	   t_ray_cur = t_ray_cur - t_l_interval_pre;
+			   t_l = t_ray_cur;
+			   // if it is the first cluster
+			   if (i == 0)
+			   	{
+			   	   E_tap_W[i][j] = Omg_0_dB * exp((-1.0)*T_l/Gamma) * exp((-1.0)*t_l/gamma_pre); 
+			   	}
+			   else
+			   	{
+			   	   E_tap_W[i][j] = Omg_0_dB * exp((-1.0)*T_l/Gamma) * exp((-1.0)*t_l/gamma_pre) - K_r_dB_pre; 
+			   	}		   
+		   	}
+		   // central ray
+		   else if (j == j_central)
+		   	{
+		   	   t_ray_cur = t_cluster_cur;
+			   E_tap_W[i][j] = Omg_0_dB * exp((-1.0)*T_l/Gamma);
+		   	}
+		   // post cursor
+		   else
+		   	{
+		   	   t_ray_cur = t_ray_cur + t_l_interval_post;
+			   t_l = t_ray_cur;
+			   // if it is the first cluster
+			   if (i == 0)
+			   	{
+			   	   E_tap_W[i][j] = Omg_0_dB * exp((-1.0)*T_l/Gamma) * exp((-1.0)*t_l/gamma_post); 
+			   	}
+			   else
+			   	{
+			   	   E_tap_W[i][j] = Omg_0_dB * exp((-1.0)*T_l/Gamma) * exp((-1.0)*t_l/gamma_post) - K_r_dB_post; 
+			    }		   
+		   	}
+		   E_tap_W[i][j] = std::pow(10, E_tap_W[i][j]/10);
+	   	}	   	   
+  	}
+
+  // path/channel gain
+  double sum_E = 0.0;
+  double G = 0.0;  
+  double G_min = txPowerDbm - 96.0; // set a min threshold to prevent the MissAck bug (for 11ad Single-carrier PHY)
+
+  for (int i = 0; i < num_cluster; ++i)
+  	{
+  	  for (int j = 0; j < num_ray; ++j)
+  	  	{
+  	  	  sum_E = sum_E + E_tap_W[i][j];
+  	  	}
+  	}
+  
+  
+  G = (lambda_w/(4*PI*L))*(lambda_w/(4*PI*L))*rou2 * sum_E;
+
+  double G_dB;
+  if (G <= 0)
+  	{
+  	  G_dB = -1000.0; // set as a -inf
+  	}
+  else
+  	{
+      G_dB = 10.0*std::log10(G);
+  	}
+
+  G_sv = max(G_min, G_dB);
+
+  return G_sv;
+}
+
+
 void
 DmgWifiChannel::Send (Ptr<DmgWifiPhy> sender, Ptr<const WifiPpdu> ppdu, double txPowerDbm) const
 {
@@ -266,7 +685,23 @@ DmgWifiChannel::Send (Ptr<DmgWifiPhy> sender, Ptr<const WifiPpdu> ppdu, double t
             }
           else
             {
-              if (m_TGadChannel == true)
+              if ((m_SVChannel == false) && (m_TGadChannel == false)) // Jian-Liu Channel (WiMove'21)
+                 {
+                  	    rxPowerDbm = m_loss->CalcRxPower (txPowerDbm, senderMobility, receiverMobility) +
+                                 gtx + grx +
+                                 m_scenario->GetFadingInfo(sender_pos, receiverMobility->GetPosition ()).second;
+                        // std::cerr << "path loss is: " << m_loss->CalcRxPower (txPowerDbm, senderMobility, receiverMobility) << std::endl;
+						NS_LOG_DEBUG ("rxPowerDbm" << rxPowerDbm << " fading " << m_scenario->GetFadingInfo(sender_pos, receiverMobility->GetPosition ()).second);
+                 }
+			  else if ((m_SVChannel == true) && (m_TGadChannel == false)) // S-V 11ad channel
+              	 {
+				  		Ptr<DmgWifiPhy> receiver = *i;
+				  		double G_sv_channel = SVChannelGain(m_reflectorDenseMode, sender, receiver, txPowerDbm, m_obsDensity);
+				  		rxPowerDbm = txPowerDbm + G_sv_channel;
+				  		NS_LOG_INFO("rxPowerDbm" << rxPowerDbm << " fading " << G_sv_channel);
+						// std::cerr << "rxPowerDbm" << rxPowerDbm << " fading " << G_sv_channel << std::endl;
+              	 }
+              else if ((m_TGadChannel == true) && (m_SVChannel == false)) // TGad channel
 				 {
 				  	    // double pathloss_db = m_loss->CalcRxPower (txPowerDbm, senderMobility, receiverMobility) - txPowerDbm;
                         // pathloss_db = max(pathloss_db, -98.0); // based on TGad document
@@ -279,7 +714,7 @@ DmgWifiChannel::Send (Ptr<DmgWifiPhy> sender, Ptr<const WifiPpdu> ppdu, double t
 						// std::cerr << "rxPowerDbm is: " << rxPowerDbm << std::endl; 
 						// NS_LOG_DEBUG ("rxPowerDbm" << rxPowerDbm << " fading " << m_scenario->GetFadingInfo(sender_pos, receiverMobility->GetPosition ()).second);
 				 }
-			  else // default channel
+			  else // default log-distance based channel, rarely used
 			  	 {
                      rxPowerDbm = m_loss->CalcRxPower (txPowerDbm, senderMobility, receiverMobility) + gtx + grx;
 			  	 }

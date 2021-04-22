@@ -85,7 +85,7 @@ public:
 
   /* Saleh-Valenzuela Channel for 60 GHz indoor scenario */
   // default reflectorDenseMode is lower density, i.e., 1
-  // double SVChannelGain(int reflectorDenseMode, Ptr<YansWifiPhy> sender, Ptr<YansWifiPhy> receiver, double txPowerDbm, double obsDensity) const;
+  double SVChannelGain(int reflectorDenseMode, Ptr<DmgWifiPhy> sender, Ptr<DmgWifiPhy> receiver, double txPowerDbm, double obsDensity) const;
 
   /**
    * \param loss the new propagation loss model.
