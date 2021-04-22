@@ -1,7 +1,7 @@
 ## Introduction:
-This is a repository for the development of the WLAN IEEE 802.11ad/ay standards in network simulator ns-3. Both 11ad and 11ay standards support wireless networking in the unlicensed 60 GHz band. Our implementation paves the way to perform high fidelity simulations for large dense wireless networks consisting of devices with heterogeneous capabilities and constraints. For more information on the project, please refer to our publications below.
+This is a repository for the development of the WLAN IEEE 802.11ad/ay standards in network simulator ns-3. Both 11ad and 11ay standards support wireless networking in the unlicensed 60 GHz band. Our implementation paves the way to perform high fidelity simulations for large dense wireless networks consisting of devices with heterogeneous capabilities and constraints.
 
-## New Release:
+## IEEE 802.11ay Features:
 We are happy to share the first pre-release of our IEEE 802.11ay module in network simulator ns-3. We list here some of the new features:
 
 1. IEEE 802.11ay PHY frame structure, new MAC frame formats, and new Information Elements.
@@ -35,14 +35,13 @@ We are happy to share the first pre-release of our IEEE 802.11ay module in netwo
 1. Multi-AP support without the need for decentralized clustering.
 1. A comprehensive set of examples and tutorials for each feature.
 
-## Project Road-map:
-We are working on the following set of features for our next release:
-1. Multi-channel scheduling.
-1. Accurate modeling for non-duplicate frame transmission and reception.
-1. Extending SU-MIMO implementation to support beamforming training and data communication in dense network deployment.
-1. MU-MIMO channel access procedure.
-1. Hybrid beamforming protocol. 
-1. mmWave distribution protocol (TDD).
+## Complementary WLAN modeling features:
+1. Cuboid-based obstacle model (including both furniture-type obstacle and humam obstacle modeling).
+1. Accurate Line-of-Sight determination function.
+1. Modified channel model for indoor WLAN, where the path loss model is extended to include multipath, shadowing, and penertration loss components.
+1. Sparse cluster-based channel model, which characterizes the multipath components (MPCs) arriving in clusters.
+1. Support for multiple access point and mobile access point configurations.
+1. Add specular reflection path determination function, support for strategical reflector placement. (under development)
 
 ## Limitation:
 Below is a list of the limitation in the code:
@@ -77,36 +76,10 @@ Warning: The previous command will generate large executable files.
 ## Tutorial Scripts:
 The project includes different scripts located in the scratch folder to test the previously listed features and mechanisms. At the beginning of each script, we added a detailed description regarding the tested functionality, network topology, expected output, and usage method.
 
-## Publications:
-The implementation is based on the existing model of the WLAN IEEE 802.11 in ns-3. The following papers include background on IEEE 802.11ad, implementation details, and evaluation section for this model. If you use our model in your research, please cite the following papers: 
-
-* Hany Assasa, and Joerg Widmer.
-**[Implementation and Evaluation of a WLAN IEEE 802.11ad Model in ns-3.](https://dl.acm.org/citation.cfm?id=2915377)**
-The Workshop on ns-3 (WNS3 2016), 15-16 June 2016, Seattle, WA, USA.
-* Hany Assasa, and Joerg Widmer.
-**[Extending the IEEE 802.11ad Model: Scheduled Access, Spatial Reuse, Clustering, and Relaying.](https://dl.acm.org/citation.cfm?id=3067667)**
-The Workshop on ns-3 (WNS3), 13-14 June 2017, Porto, Portugal.
-* Hany Assasa, Joerg Widmer, Tanguy  Ropitault, and Nada Golmie.
-**[Enhancing the ns-3 IEEE 802.11ad Model Fidelity: Beam Codebooks, Multi-antenna Beamforming Training, and Quasi-deterministic mmWave Channel.](https://dl.acm.org/citation.cfm?id=3321354)**
-The Workshop on ns-3 (WNS3), 19-20 June 2019, Florence, Italy.
-* Hany Assasa, Joerg Widmer, Tanguy Ropitault, Anuraag Bodi, and Nada Golmie.
-**[High Fidelity Simulation of IEEE 802.11ad in ns-3 Using a Quasi-deterministic Channel Model.](https://dl.acm.org/citation.cfm?id=3337946)**
-Proceedings of the 2019 Workshop on Next-Generation Wireless with ns-3 (WNGW 2019), 21 June 2019, Florence, Italy.
-* Hany Assasa, Joerg Widmer, Jian Wang, Tanguy Ropitault, and Nada Golmie.
-**[An Implementation Proposal for IEEE 802.11ay SU/MU-MIMO Communication in ns-3](https://dl.acm.org/citation.cfm?id=3337947)**
-Proceedings of the 2019 Workshop on Next-Generation Wireless with ns-3 (WNGW 2019), 21 June 2019, Florence, Italy.
-
-
-## Reporting:
-In case you come across a bug during the usage of our implementation, please report the problem to the following email address (hany.assasa@gmail.com). In the email, please include the following:
-
-1. Simulation file with a small description of the simulated scenario and the expected output.
-1. The set of input parameters that caused the simulation to crash.
-
-Please do not report any problem related to your modification of the original code.
 
 ## Author Information:
 The project is developed and maintained by:
 1. [Hany Assasa](http://people.networks.imdea.org/~hany_assasa/) (Project leader)
 1. [Nina Grosheva](https://networks.imdea.org/team/imdea-networks-team/people/nina-grosheva/)
+1. Yuchen Liu (yuchen.liu.sn@gmail.com)
 
