@@ -85,7 +85,7 @@ main(int argc, char *argv[])
   uint16_t clientDistType = 0; // 0-possion, 1-trucated-normal, 2-OD-Truncated Normal, 3-OD
   bool mobilityUE = 0; // 0--static, 1--mobile (random walk)
   bool obsConflictCheck = false; // true--checking obstacle conflicts when allocating obstacles
-  bool FOFC = true; // true -- allocate fixed obstacles and clients in the scenario; false: randomly generate obstacles and clients
+  bool FOFC = false; // true -- allocate fixed obstacles and clients in the scenario; false: randomly generate obstacles and clients
 
   std::vector<double> xPos, yPos, wObs, lObs, hObs, dirObs, hObs_min;
   double a;
