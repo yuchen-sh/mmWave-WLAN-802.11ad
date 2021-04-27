@@ -70,6 +70,11 @@ To build the project in optimized mode for fast execution type the following com
 
     ./waf configure --disable-examples --disable-tests --disable-python --enable-modules='applications','core','internet','point-to-point','wifi','flow-monitor','spectrum' --enable-static -d optimized
     ./waf build
+    
+You may need to ignore the warnings when building the project, and please type the following command:
+
+     CXXFLAGS="-Wno-error" ./waf configure --disable-examples --disable-tests --disable-python --enable-modules='applications','core','internet','point-to-point','wifi','flow-monitor','spectrum' --enable-static -d optimized
+     ./waf build
 
 Warning: The previous command will generate large executable files.
 
