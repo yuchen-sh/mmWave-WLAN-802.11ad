@@ -1,0 +1,68 @@
+Double-room Simulation 
+
+Time instant 1
+
+clientPos: 6.89392 3.22385 1.35195
+clientPos: 18.4858 5.73121 0.733799
+
+Room 1
+0 1 
+1913.82 0 
+
+Room 2
+0 0 
+1907.74 1907.09 
+
+Time instant 2
+
+clientPos: 5.33409 6.88843 1.08188
+clientPos: 14.0588 7.39089 1.06926
+
+Room 1
+0 1 
+1910.08 0 
+
+Room 2
+1 0 
+0 1913.6 
+
+Time instant 3
+
+clientPos: 4.81574 1.16666 1.31891
+clientPos: 16.6454 6.53249 0.893952
+
+Room 1
+0 1 
+1915.14 0 
+
+Room 2
+1 0 
+0 1905.84 
+
+Time instant 4
+
+clientPos: 2.7965 0.447606 1.46252
+clientPos: 13.4197 1.51935 0.979849
+
+Room 1
+0 1 
+1912.73 0 
+
+Room 2
+1 0 
+0 1916.45 
+
+Time instant 5
+
+clientPos: 3.21046 7.53526 1.61395
+clientPos: 23.3669 3.22315 1.14858
+
+Room 1
+0 1 
+1910.92 0 
+
+Room 2
+1 0 
+0 1916.37 
+
+Running time: 700.766 
