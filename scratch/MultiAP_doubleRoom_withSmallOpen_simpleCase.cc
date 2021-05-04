@@ -590,6 +590,7 @@ main(int argc, char *argv[])
   MobilityHelper mobility2; // user's ,obility model
   Ptr<ListPositionAllocator> positionAlloc = CreateObject<ListPositionAllocator> ();
   Vector apPos = apPosVec.at(nii);
+  positionAlloc->Add (apPos);	/* PCP/AP */
 
   if (nii == 0)
   	{
