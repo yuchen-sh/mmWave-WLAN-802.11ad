@@ -89,8 +89,8 @@ main(int argc, char *argv[])
 
   std::vector<double> xPos, yPos, wObs, lObs, hObs, dirObs, hObs_min;
   double a;
-  string filename_obs = "/home/guest/YCworkSpace/ns3-802-11ad-ay/obs_info/case_fixed_obs_living_room.txt";
-  string filename_client = "/home/guest/YCworkSpace/ns3-802-11ad-ay/UE_info/case_UE_pos_living_room.txt";
+  string filename_obs = "obs_info/case_fixed_obs_living_room.txt";
+  string filename_client = "UE_info/case_UE_pos_living_room.txt";
   std::vector<double> obs_temp;
   if (FOFC == true)
   	{

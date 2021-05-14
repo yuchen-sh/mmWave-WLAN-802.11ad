@@ -115,8 +115,8 @@ main(int argc, char *argv[])
 
   std::vector<double> xPos, yPos, wObs, lObs, hObs, dirObs, hObs_min;
   double a;
-  string filename_obs = "/home/guest/YCworkSpace/ns3-802-11ad-ay/obs_info/case_fixed_obs_living_room.txt";
-  string filename_client = "/home/guest/YCworkSpace/ns3-802-11ad-ay/UE_info/case_UE_pos_living_room.txt";
+  string filename_obs = "obs_info/case_fixed_obs_living_room.txt";
+  string filename_client = "UE_info/case_UE_pos_living_room.txt";
   std::vector<double> obs_temp;
   if (FOFC == true)
   	{
@@ -212,7 +212,7 @@ main(int argc, char *argv[])
   /* Validate WiGig standard value */
   WifiPhyStandard wifiStandard = WIFI_PHY_STANDARD_80211ay;
   string wifiModePrefix = "EDMG_SC";
-  uint modes = 2;          /* The number of PHY modes we have. */
+  // uint modes = 2;          /* The number of PHY modes we have. */
   uint maxMcs = 21;        /* The maximum MCS index. */
 
   if (PhyMode_ay == 2)

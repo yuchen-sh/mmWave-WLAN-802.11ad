@@ -241,7 +241,7 @@ private:
   // Yuchen
   bool m_channelStatus;
   double m_shadowing;
-  Ptr<Obstacle> m_scenario;
+  Ptr<Obstacle> m_scenario = CreateObject<Obstacle> ();
   bool m_SVChannel;
   bool m_TGadChannel;
   int m_reflectorDenseMode;
