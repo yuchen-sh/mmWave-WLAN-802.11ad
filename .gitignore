@@ -1,5 +1,4 @@
 build/
-doc/
 *.tr
 *.pcap
 *.dat
@@ -12,6 +11,5 @@ doc/
 *.files
 *.includes
 *.pyc
-waf
 .waf*
 *~
