@@ -1246,6 +1246,7 @@ Obstacle::LoSAnalysis (Vector apLocation, std::vector<Vector> clientLocation, Ve
 {
   NS_LOG_FUNCTION (this << m_obstalceNumber);
   //std::pair<std::vector<bool>, std::vector<double>> channelStats;
+  uint16_t size_mChannel = m_channelInfo.size();
   for (uint16_t clientId = 0; clientId < clientLocation.size(); clientId++)
     {
       bool channelStatus = LINE_OF_SIGHT;
@@ -1341,10 +1342,10 @@ Obstacle::LoSAnalysis (Vector apLocation, std::vector<Vector> clientLocation, Ve
 	  }
 	  
       m_channelInfo.push_back(ChannelInfo());
-      m_channelInfo.at(clientId).losFlag = channelStatus;
-      m_channelInfo.at(clientId).fadingLoss = -fadingLoss;
-      m_channelInfo.at(clientId).apPos = apLocation;
-      m_channelInfo.at(clientId).clientPos = clientLocation.at(clientId);
+      m_channelInfo.at(clientId + size_mChannel).losFlag = channelStatus;
+      m_channelInfo.at(clientId + size_mChannel).fadingLoss = -fadingLoss;
+      m_channelInfo.at(clientId + size_mChannel).apPos = apLocation;
+      m_channelInfo.at(clientId + size_mChannel).clientPos = clientLocation.at(clientId);
         
       //channelStats.first.push_back (channelStatus);
       //channelStats.second.push_back(-fadingLoss);

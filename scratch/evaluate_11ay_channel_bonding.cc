@@ -182,7 +182,7 @@ main (int argc, char *argv[])
               MobilityHelper mobility;
               Ptr<ListPositionAllocator> positionAlloc = CreateObject<ListPositionAllocator> ();
               positionAlloc->Add (Vector (0.0, 0.0, 0.0));        /* WiGig PCP/AP */
-              positionAlloc->Add (Vector (1.0, 0.0, 0.0));        /* WiGig STA */
+              positionAlloc->Add (Vector (5.0, 0.0, 0.0));        /* WiGig STA */
 
               mobility.SetPositionAllocator (positionAlloc);
               mobility.SetMobilityModel ("ns3::ConstantPositionMobilityModel");

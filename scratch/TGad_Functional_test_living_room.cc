@@ -22,12 +22,22 @@
 
 /**
  * Simulation Objective:
- * This script is used to evaluate the performance of living room scenario defined in TGay Functional Evaluation document 
+ * This script is used to evaluate the performance of living room scenario defined in TGad Functional Evaluation document 
 
- * To evaluate CSMA/CA channel access scheme: scheme=1, To evaluate SP channel access scheme: scheme=0
+ * Network Topology:
+ * The scenario consists of 1 DMG AP and six DMG STAs, and three of them are LoS to AP (separation distance is 2m, 4.5m, and 7m), others are NLoS to AP (separation distance is 2m, 4.5m, and 7m). 
+ *
+ *
+ *
+ * Running Simulation:
+ * ./waf --run "TGad_Functional_test_living_room --clientRS=1"  ( 1 <= clientRS <= 6)
+ *
+ * Simulation Output:
+ * 1. LoS/NLoS status (LoS -- 0; NLoS -- 1)
+ * 2. Throughput (Mbps)
  */
 
-NS_LOG_COMPONENT_DEFINE ("CompareAccessSchemes");
+NS_LOG_COMPONENT_DEFINE ("TGadFunctionalTest");
 
 
 
@@ -39,27 +49,10 @@ uint64_t totalRx = 0;
 double throughput = 0;
 uint32_t allocationType = 0;               /* The type of channel access scheme during DTI (CBAP is the default) */
 
-/*
-void
-SetAntennaConfigurations (NetDeviceContainer &apDevice, NetDeviceContainer &staDevice)
-{
-  Ptr<WifiNetDevice> apWifiNetDevice = DynamicCast<WifiNetDevice> (apDevice.Get (0));
-  Ptr<WifiNetDevice> staWifiNetDevice = DynamicCast<WifiNetDevice> (staDevice.Get (0));
-  Ptr<DmgApWifiMac> apWifiMac = DynamicCast<DmgApWifiMac> (apWifiNetDevice->GetMac ());
-  Ptr<DmgStaWifiMac> staWifiMac = DynamicCast<DmgStaWifiMac> (staWifiNetDevice->GetMac ());
-  apWifiMac->AddAntennaConfig (1, 1, staWifiMac->GetAddress ());
-  staWifiMac->AddAntennaConfig (5, 1, apWifiMac->GetAddress ());
-  apWifiMac->SteerAntennaToward (staWifiMac->GetAddress ());
-  staWifiMac->SteerAntennaToward (apWifiMac->GetAddress ());
-}
-*/
-
-
-
 int
 main(int argc, char *argv[])
 {
-  LogComponentEnable ("CompareAccessSchemes", LOG_LEVEL_ALL);
+  LogComponentEnable ("TGadFunctionalTest", LOG_LEVEL_ALL);
   //LogComponentEnable ("MacLow", LOG_LEVEL_ALL);
   //LogComponentEnable ("EdcaTxopN", LOG_LEVEL_ALL);
   //LogComponentEnable ("Obstacle", LOG_LEVEL_ALL);
@@ -68,18 +61,13 @@ main(int argc, char *argv[])
   // LogComponentEnable ("DmgApWifiMac", LOG_LEVEL_ALL);
 
   uint32_t payloadSize = 1472;                  /* Application payload size in bytes. */
-  // string dataRate = "8085Mbps";                 /* Application data rate. */
-  // uint32_t msduAggregationSize = 8000; // 7935; /* The maximum aggregation size for A-MSDU in Bytes. */
-  // uint32_t mpduAggregationSize = 262143;        /* The maximum aggregation size for A-MSPU in Bytes. */
-  // uint32_t queueSize = 1000;                 /* Wifi MAC Queue Size. */
-  string msduAggSize = "7935"; // "max";        /* The maximum aggregation size for A-MSDU in Bytes. */
-  string mpduAggSize = "max";                   /* The maximum aggregation size for A-MPDU in Bytes.*/ 
-  string queueSize = "4000p";                   /* Wifi MAC Queue Size. */
-  bool enableRts = false;                       /* Flag to indicate if RTS/CTS handskahre is enabled or disabled. */
-  uint32_t rtsThreshold = 0;                    /* RTS/CTS handshare threshold. */
-  // string phyMode = "DMG_MCS12";                 /* Type of the Physical Layer. */
+  string dataRate = "4500Mbps";                 /* Application data rate. */
+  uint32_t msduAggregationSize = 8000; // 7935; /* The maximum aggregation size for A-MSDU in Bytes. */
+  uint32_t mpduAggregationSize = 262143;        /* The maximum aggregation size for A-MSPU in Bytes. */
+  uint32_t queueSize = 1000;                    /* Wifi MAC Queue Size. */
+  string phyMode = "DMG_MCS12";                 /* Type of the Physical Layer. */
   bool verbose = false;                         /* Print Logging Information. */
-  double simulationTime = 2; // 1.5 , 1.125   /* Simulation time in seconds. */
+  double simulationTime = 1.5; // 1.5 , 1.125   /* Simulation time in seconds. */
   bool pcapTracing = false;                     /* PCAP Tracing is enabled. */
   double x = 4.5;
   double y = 3;
@@ -101,7 +89,7 @@ main(int argc, char *argv[])
   // bool hermesFlag = 0;  // 0--Multiple static AP, 1--mobile AP
   uint16_t obsNumber = 20; // 22, 43, furniture-type obstacles
   double human_obs_ratio = 0; // if no human blockage, set as 0 // 0.5
-  bool SV_channel = false; // enable SV channel
+  // bool SV_channel = false; // enable SV channel
   bool TGad_channel = true; // enable TGad_channel
   int reflectorDenseMode = 2; // 1/2/3 -> lower/medium/higher density of highly-reflective objects in the room
   uint16_t clientDistType = 0; // 0-possion, 1-trucated-normal, 2-OD-Truncated Normal, 3-OD
@@ -109,19 +97,16 @@ main(int argc, char *argv[])
   bool obsConflictCheck = false; // true--checking obstacle conflicts when allocating obstacles
   bool FOFC = true; // true -- allocate fixed obstacles and clients in the scenario; false: randomly generate obstacles and clients
 
-  uint PhyMode_ay = 1; // 1 is for EDMG_SC, 2 is for EDMG_OFDM
-  uint channelIdx = 0; //  0 -- 2.16, 1 -- 4.32, 2 -- 6.48, 3 -- 8.64 GHz.
-  
-
   std::vector<double> xPos, yPos, wObs, lObs, hObs, dirObs, hObs_min;
-  double a;
-  string filename_obs = "obs_info/case_fixed_obs_living_room.txt";
-  string filename_client = "UE_info/case_UE_pos_living_room.txt";
+  // double a;
+  // string filename_obs = "obs_info/case_fixed_obs_living_room.txt";
+  // string filename_client = "UE_info/case_UE_pos_living_room.txt";
   std::vector<double> obs_temp;
   if (FOFC == true)
   	{
   // Fixed obstacle setting
   // read the obstacle info from the txt
+  /*
   std::ifstream ifs;
   ifs.open(filename_obs, ios::in);
   if (!ifs) // no file exists
@@ -142,6 +127,15 @@ main(int argc, char *argv[])
 		NS_LOG_INFO("File exists but Unable to open");
 		std::cerr << "File exists but Unable to open! (obs file)" << std::endl;
 	}
+  */
+  obs_temp = {2.0, 0.7, 0.7, 2.24, 2.0, 0.7, 0.7, 2.24, 1.5, 0.05, 0.05, 0.05, 0.05, 0.6, 0.7, 0.7, 0.84, 1.6, 
+              0.7, 0.12, 0.12, 0.14, 0.7, 0.12, 0.12, 0.14, 0.6, 0.05, 0.05, 0.05, 0.05, 0.6, 0.12, 0.12, 0.14, 0.5,
+              0.8, 1.2, 1.2, 1.26, 0.8, 1.2, 1.2, 1.26, 1.1, 1.03, 1.03, 1.03, 1.03, 0.8, 1.2, 1.2, 1.26, 1.5, 
+              90, 0, 0, 90, 0, 90, 90, 0, 90, 0, 0, 0, 0, 45, 135, 135, 45, 0,
+              2.6, 2.6, 2.6, 2.18, 4.3, 3.24, 5.36, 4.3, 4.3, 4.1, 4.5, 4.1, 4.5, 5.36, 5, 5.72, 5.36, 3.5,
+              3.5, 2.44, 4.56, 3.5, 1.65, 1.65, 1.65, 1.23, 3.5, 4.15, 4.15, 2.85, 2.85, 5.1, 5.1, 5.1, 5.47, 6.75,
+              0, 0, 0, 0, 0, 0, 0, 0, 1.03, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+  
   obsNumber = obs_temp.size()/7;
   for (uint16_t io = 0; io < obs_temp.size(); ++io)
   	{
@@ -181,12 +175,12 @@ main(int argc, char *argv[])
   /* Command line argument parser setup. */
   CommandLine cmd;
   cmd.AddValue ("payloadSize", "Application payload size in bytes", payloadSize);
-  // cmd.AddValue ("dataRate", "Application data rate", dataRate);
-  cmd.AddValue ("msduAggregation", "The maximum aggregation size for A-MSDU in Bytes", msduAggSize);
-  cmd.AddValue ("mpduAggregation", "The maximum aggregation size for A-MPDU in Bytes", mpduAggSize);
+  cmd.AddValue ("dataRate", "Application data rate", dataRate);
+  cmd.AddValue ("msduAggregation", "The maximum aggregation size for A-MSDU in Bytes", msduAggregationSize);
+  cmd.AddValue ("mpduAggregation", "The maximum aggregation size for A-MPDU in Bytes", mpduAggregationSize);
   cmd.AddValue ("queueSize", "The maximum size of the Wifi MAC Queue", queueSize);
   cmd.AddValue ("scheme", "The access scheme used for channel access (0=SP,1=CBAP)", allocationType);
-  cmd.AddValue ("phyMode", "802.11ay PHY Mode", PhyMode_ay);
+  cmd.AddValue ("phyMode", "802.11ad PHY Mode", phyMode);
   cmd.AddValue ("verbose", "Turn on all WifiNetDevice log components", verbose);
   cmd.AddValue ("simulationTime", "Simulation time in seconds", simulationTime);
   cmd.AddValue ("pcap", "Enable PCAP Tracing", pcapTracing);
@@ -205,34 +199,7 @@ main(int argc, char *argv[])
   // cmd.AddValue ("hermesFlag", "0 means static AP scenario, 1 means hermes scenario", hermesFlag);
   // cmd.AddValue ("shapeCategary", "shape Categary", shapeCategary);
   cmd.AddValue ("obsNumber", "obstacle Number", obsNumber);  
-  cmd.AddValue ("enableRts", "Enable or disable RTS/CTS handshake", enableRts);
   cmd.Parse (argc, argv);
-
-
-  /* Validate WiGig standard value */
-  WifiPhyStandard wifiStandard = WIFI_PHY_STANDARD_80211ay;
-  string wifiModePrefix = "EDMG_SC";
-  // uint modes = 2;          /* The number of PHY modes we have. */
-  uint maxMcs = 21;        /* The maximum MCS index. */
-
-  if (PhyMode_ay == 2)
-     {
-        wifiModePrefix = "EDMG_OFDM";
-        maxMcs = 20;
-     }
-  
-  uint mcs = maxMcs; // 12; // maxMcs; 
-
-  /* Validate A-MSDU and A-MPDU values */
-  ValidateFrameAggregationAttributes (msduAggSize, mpduAggSize, wifiStandard);
-  /* Configure RTS/CTS and Fragmentation */
-  ConfigureRtsCtsAndFragmenatation (enableRts, rtsThreshold);
-  /* Wifi MAC Queue Parameters */
-  ChangeQueueSize (queueSize);
-
-  // 802.11ay channel list
-  vector<uint8_t> channelList = {2, 9, 17, 25}; // 2.16, 4.32, 6.48, 8.64 GHz.
-  
 
   // set human obstacle number
   uint16_t obsNumber_human = (uint16_t)(floor(obsNumber*1.0*human_obs_ratio));
@@ -248,7 +215,7 @@ main(int argc, char *argv[])
 
   /**** WifiHelper is a meta-helper: it helps creates helpers ****/
   DmgWifiHelper wifi;
-  wifi.SetStandard (wifiStandard); // set up the standard
+  wifi.SetStandard (WIFI_PHY_STANDARD_80211ad); // set up the standard
 
   /* Turn on logging */
   if (verbose)
@@ -289,24 +256,15 @@ main(int argc, char *argv[])
   wifiPhy.Set ("TxPowerEnd", DoubleValue (10));
   wifiPhy.Set ("TxPowerLevels", UintegerValue (1));
   /* Set operating channel */
-  EDMG_CHANNEL_CONFIG config = FindChannelConfiguration (channelList[channelIdx]);
-  wifiPhy.Set ("ChannelNumber", UintegerValue (config.chNumber));
-  wifiPhy.Set ("PrimaryChannelNumber", UintegerValue (config.primayChannel));
-  /* Add support for the OFDM PHY */
-  wifiPhy.Set ("SupportOfdmPhy", BooleanValue (true));
+  wifiPhy.Set ("ChannelNumber", UintegerValue (2));
   /* Sensitivity model includes implementation loss and noise figure */
-  // wifiPhy.Set ("RxNoiseFigure", DoubleValue (10));
-  /* Set default algorithm for all nodes to be constant rate */
-  wifi.SetRemoteStationManager ("ns3::ConstantRateWifiManager", "DataMode",
-                                 StringValue (wifiModePrefix + "_MCS" + std::to_string (mcs)));
+  wifiPhy.Set ("RxNoiseFigure", DoubleValue (10));
   /* Set the phy layer error model */
-  // wifiPhy.SetErrorRateModel ("ns3::SensitivityModel60GHz");
-  wifiPhy.SetErrorRateModel ("ns3::DmgErrorModel",
-                             "FileName", StringValue ("DmgFiles/ErrorModel/LookupTable_1458_ay.txt"));
+  wifiPhy.SetErrorRateModel ("ns3::SensitivityModel60GHz");
 
   /* Set default algorithm for all nodes to be constant rate */
-  // wifi.SetRemoteStationManager ("ns3::ConstantRateWifiManager", "ControlMode", StringValue (phyMode),
-                                                                // "DataMode", StringValue (phyMode));
+  wifi.SetRemoteStationManager ("ns3::ConstantRateWifiManager", "ControlMode", StringValue (phyMode),
+                                                                "DataMode", StringValue (phyMode));
 					
   /* Make two nodes and set them up with the PHY and the MAC */
   NodeContainer staWifiNode;
@@ -320,14 +278,13 @@ main(int argc, char *argv[])
   Ssid ssid = Ssid ("Compare");
   wifiMac.SetType ("ns3::DmgApWifiMac",
                    "Ssid", SsidValue(ssid),
-                   "BE_MaxAmpduSize", StringValue (mpduAggSize),
-                   "BE_MaxAmsduSize", StringValue (msduAggSize),
-                   "EDMGSupported", BooleanValue (true),
-                   "SSSlotsPerABFT", UintegerValue (8), "SSFramesPerSlot", UintegerValue (16),
-                   "BeaconInterval", TimeValue (MicroSeconds (102400)));
+                   "BE_MaxAmpduSize", UintegerValue (mpduAggregationSize),
+                   "BE_MaxAmsduSize", UintegerValue (msduAggregationSize),
+                   "SSSlotsPerABFT", UintegerValue (8), "SSFramesPerSlot", UintegerValue (8),
+                   "BeaconInterval", TimeValue (MicroSeconds (102400)),
                    // "BeaconTransmissionInterval", TimeValue (MicroSeconds (600)),
                    // "ATIPresent", BooleanValue (false)
-                   // "ATIDuration", TimeValue (MicroSeconds (1000)));
+                   "ATIDuration", TimeValue (MicroSeconds (1000)));
 
   /* Set Analytical Codebook for the DMG Devices */
   wifi.SetCodebook ("ns3::CodebookAnalytical",
@@ -340,15 +297,11 @@ main(int argc, char *argv[])
 
   wifiMac.SetType ("ns3::DmgStaWifiMac",
                    "Ssid", SsidValue (ssid), "ActiveProbing", BooleanValue (false),
-                   "BE_MaxAmpduSize", StringValue (mpduAggSize),
-                   "BE_MaxAmsduSize", StringValue (msduAggSize),
-                   "EDMGSupported", BooleanValue (true));
+                   "BE_MaxAmpduSize", UintegerValue (mpduAggregationSize),
+                   "BE_MaxAmsduSize", UintegerValue (msduAggregationSize));
 
   NetDeviceContainer staDevice;
   staDevice = wifi.Install (wifiPhy, wifiMac, staWifiNode);
-
-  /* Set the best antenna configurations */
-  // Simulator::ScheduleNow (&SetAntennaConfigurations, apDevice, staDevice);
 
   // Set Obstacles and track location
   Ptr<Obstacle> labScenarios = CreateObject<Obstacle> ();
@@ -427,6 +380,7 @@ main(int argc, char *argv[])
   	{
         // std::vector<Vector> clientPos;
   		std::vector<double> client_temp;
+		/*
   		std::ifstream ifs1;
   		ifs1.open(filename_client, ios::in);
   		if (!ifs1) // no file exists
@@ -448,6 +402,14 @@ main(int argc, char *argv[])
 			NS_LOG_INFO("File exists but Unable to open");
 			std::cerr << "File exists but Unable to open! (client file)" << std::endl;
 		}
+		*/
+        client_temp = {5.6, 5.0, 1.3,
+                       2.15, 2.5, 1.4,
+                       2.4, 0.3, 1.6,
+                       5.6, 5.2, 0.8,
+                       2.15, 3.2, 0.6,
+                       3.2, 0.5, 0.1};
+		
   		// int FixedUENumber = client_temp.size()/3;
   		Vector thisUE = Vector (client_temp.at((clientRS - 1)*3), client_temp.at((clientRS - 1)*3 + 1), client_temp.at((clientRS - 1)*3 + 2));
   		clientPos.push_back(thisUE); // only for one-user case
@@ -466,7 +428,7 @@ main(int argc, char *argv[])
     positionAlloc->Add (clientPos.at(clientId));  /* DMG STA */
   labScenarios->LoSAnalysis (apPos, clientPos, apDimension);
   wifiChannel->SetScenarioModel(labScenarios);
-  wifiChannel->SetSVChannelEnabler(SV_channel);
+  // wifiChannel->SetSVChannelEnabler(SV_channel);
   wifiChannel->SetTGadChannelEnabler(TGad_channel);
   wifiChannel->SetSVChannelReflectedMode(reflectorDenseMode);
   labScenarios->SetObsConflictCheck(obsConflictCheck);
@@ -490,12 +452,6 @@ main(int argc, char *argv[])
   	  	}
   	}
   
-  // do interference analysis, only for multi-user, multi-AP cases
-  std::vector<std::vector<double> > InterfVec_analy;
-  if ((clientNo > 1)&&(i > 1))
-  	{
-  	  InterfVec_analy = labScenarios->InterferenceAnalysis (apPosVec, clientPos, i, clientNo, losFlag_mul, 10.0);
-  	}
   
   // endRunTime=clock();
 
@@ -540,10 +496,6 @@ main(int argc, char *argv[])
 
   /* We do not want any ARP packets */
   PopulateArpCache ();
-
-  /* Get the nominal PHY rate and use it as the data rate of the application */
-  WifiMode mode = WifiMode (wifiModePrefix + "_MCS" + to_string (mcs));
-  uint64_t dataRate = mode.GetPhyRate () * config.NCB;
 
   ApplicationContainer sourceApplications, sinkApplications;
   uint32_t portNumber = 9;
@@ -592,40 +544,15 @@ main(int argc, char *argv[])
   // std::cerr << i << " " << centerLocation << " "  << clientRS << " "  << apPos << " ";
   // std::copy(clientPos.begin(), clientPos.end(), std::ostream_iterator<Vector>(std::cerr, " "));
   std::copy(losFlag.begin(), losFlag.end(), std::ostream_iterator<bool>(std::cerr, " "));
-  // consider multi-user interference only for multi-user, multi-AP cases
-  if ((clientNo > 1)&&(i > 1))
-  	{
-  	  for (unsigned index = 0; index < sinkApplications.GetN (); ++index)
-    	{
-      	    int64_t totalPacketsThrough = StaticCast<PacketSink> (sinkApplications.Get (index))->GetTotalRx ();
-			// original thrp without considering interference
-			std::cerr << ((totalPacketsThrough * 8) / ((simulationTime-1) * 1000000.0)) << " ";
-			if (InterfVec_analy[index][i-1] < 0.0)
-				{
-				  InterfVec_analy[index][i-1] = 0.0;
-				}
-			totalPacketsThrough -= (int64_t)(InterfVec_analy[index][i-1]*(simulationTime-1));
-			if (totalPacketsThrough <= 0)
-				{
-				  totalPacketsThrough = 0;
-				}			
-			throughput += ((totalPacketsThrough * 8) / ((simulationTime-1) * 1000000.0)); //Mbit/s
-			// real thrp
-      		std::cerr << ((totalPacketsThrough * 8) / ((simulationTime-1) * 1000000.0)) << " ";
-    	}
-  	}
-  else
-  	{
-  	  for (unsigned index = 0; index < sinkApplications.GetN (); ++index)
-    	{
-      	    uint64_t totalPacketsThrough = StaticCast<PacketSink> (sinkApplications.Get (index))->GetTotalRx ();
-      		throughput += ((totalPacketsThrough * 8) / ((simulationTime-1) * 1000000.0)); //Mbit/s
-      		std::cerr << ((totalPacketsThrough * 8) / ((simulationTime-1) * 1000000.0)) << " ";
-			// std::cerr << totalPacketsThrough*1.0/payloadSize << " ";
-			double distance = std::sqrt((clientPos.at(index).x - apPos.x)*(clientPos.at(index).x - apPos.x)+(clientPos.at(index).y - apPos.y)*(clientPos.at(index).y - apPos.y)+(clientPos.at(index).z - apPos.z)*(clientPos.at(index).z - apPos.z));
-			std::cerr << distance << " ";
-    	}
-  	}
+  for (unsigned index = 0; index < sinkApplications.GetN (); ++index)
+    {
+      	uint64_t totalPacketsThrough = StaticCast<PacketSink> (sinkApplications.Get (index))->GetTotalRx ();
+      	throughput += ((totalPacketsThrough * 8) / ((simulationTime-1) * 1000000.0)); //Mbit/s
+      	std::cerr << ((totalPacketsThrough * 8) / ((simulationTime-1) * 1000000.0)) << " ";
+		// std::cerr << totalPacketsThrough*1.0/payloadSize << " ";
+		// double distance = std::sqrt((clientPos.at(index).x - apPos.x)*(clientPos.at(index).x - apPos.x)+(clientPos.at(index).y - apPos.y)*(clientPos.at(index).y - apPos.y)+(clientPos.at(index).z - apPos.z)*(clientPos.at(index).z - apPos.z));
+		// std::cerr << distance << " ";
+    }
 
   // endRunTime=clock();
   // totaltime=(double)(endRunTime-startRunTime)/CLOCKS_PER_SEC;

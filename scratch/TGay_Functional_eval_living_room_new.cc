@@ -39,20 +39,19 @@ uint64_t totalRx = 0;
 double throughput = 0;
 uint32_t allocationType = 0;               /* The type of channel access scheme during DTI (CBAP is the default) */
 
-/*
+
 void
 SetAntennaConfigurations (NetDeviceContainer &apDevice, NetDeviceContainer &staDevice)
 {
   Ptr<WifiNetDevice> apWifiNetDevice = DynamicCast<WifiNetDevice> (apDevice.Get (0));
   Ptr<WifiNetDevice> staWifiNetDevice = DynamicCast<WifiNetDevice> (staDevice.Get (0));
-  Ptr<DmgApWifiMac> apWifiMac = DynamicCast<DmgApWifiMac> (apWifiNetDevice->GetMac ());
-  Ptr<DmgStaWifiMac> staWifiMac = DynamicCast<DmgStaWifiMac> (staWifiNetDevice->GetMac ());
+  Ptr<DmgAdhocWifiMac> apWifiMac = DynamicCast<DmgAdhocWifiMac> (apWifiNetDevice->GetMac ());
+  Ptr<DmgAdhocWifiMac> staWifiMac = DynamicCast<DmgAdhocWifiMac> (staWifiNetDevice->GetMac ());
   apWifiMac->AddAntennaConfig (1, 1, staWifiMac->GetAddress ());
   staWifiMac->AddAntennaConfig (5, 1, apWifiMac->GetAddress ());
   apWifiMac->SteerAntennaToward (staWifiMac->GetAddress ());
   staWifiMac->SteerAntennaToward (apWifiMac->GetAddress ());
 }
-*/
 
 
 
@@ -79,7 +78,7 @@ main(int argc, char *argv[])
   uint32_t rtsThreshold = 0;                    /* RTS/CTS handshare threshold. */
   // string phyMode = "DMG_MCS12";                 /* Type of the Physical Layer. */
   bool verbose = false;                         /* Print Logging Information. */
-  double simulationTime = 2; // 1.5 , 1.125   /* Simulation time in seconds. */
+  double simulationTime = 1.5; // 1.5 , 1.125   /* Simulation time in seconds. */
   bool pcapTracing = false;                     /* PCAP Tracing is enabled. */
   double x = 4.5;
   double y = 3;
@@ -101,7 +100,7 @@ main(int argc, char *argv[])
   // bool hermesFlag = 0;  // 0--Multiple static AP, 1--mobile AP
   uint16_t obsNumber = 20; // 22, 43, furniture-type obstacles
   double human_obs_ratio = 0; // if no human blockage, set as 0 // 0.5
-  bool SV_channel = false; // enable SV channel
+  bool SV_channel = true; // enable SV channel
   bool TGad_channel = true; // enable TGad_channel
   int reflectorDenseMode = 2; // 1/2/3 -> lower/medium/higher density of highly-reflective objects in the room
   uint16_t clientDistType = 0; // 0-possion, 1-trucated-normal, 2-OD-Truncated Normal, 3-OD
@@ -221,7 +220,7 @@ main(int argc, char *argv[])
         maxMcs = 20;
      }
   
-  uint mcs = maxMcs; // 12; // maxMcs; 
+  uint mcs = maxMcs; 
 
   /* Validate A-MSDU and A-MPDU values */
   ValidateFrameAggregationAttributes (msduAggSize, mpduAggSize, wifiStandard);
@@ -317,6 +316,7 @@ main(int argc, char *argv[])
   /* Add a DMG upper mac */
   DmgWifiMacHelper wifiMac = DmgWifiMacHelper::Default ();
 
+  /*
   Ssid ssid = Ssid ("Compare");
   wifiMac.SetType ("ns3::DmgApWifiMac",
                    "Ssid", SsidValue(ssid),
@@ -328,6 +328,7 @@ main(int argc, char *argv[])
                    // "BeaconTransmissionInterval", TimeValue (MicroSeconds (600)),
                    // "ATIPresent", BooleanValue (false)
                    // "ATIDuration", TimeValue (MicroSeconds (1000)));
+  */
 
   /* Set Analytical Codebook for the DMG Devices */
   wifi.SetCodebook ("ns3::CodebookAnalytical",
@@ -335,20 +336,28 @@ main(int argc, char *argv[])
                     "Antennas", UintegerValue (1),
                     "Sectors", UintegerValue (8));
 
+  /* Create Wifi Network Devices (WifiNetDevice) */
+  wifiMac.SetType ("ns3::DmgAdhocWifiMac",
+                   "BE_MaxAmpduSize", StringValue (mpduAggSize),
+                   "BE_MaxAmsduSize", StringValue (msduAggSize),
+                   "EDMGSupported", BooleanValue (true));				
+
   NetDeviceContainer apDevice;
   apDevice = wifi.Install (wifiPhy, wifiMac, apWifiNode.Get (0));
 
+  /*
   wifiMac.SetType ("ns3::DmgStaWifiMac",
                    "Ssid", SsidValue (ssid), "ActiveProbing", BooleanValue (false),
                    "BE_MaxAmpduSize", StringValue (mpduAggSize),
                    "BE_MaxAmsduSize", StringValue (msduAggSize),
                    "EDMGSupported", BooleanValue (true));
+  */
 
   NetDeviceContainer staDevice;
   staDevice = wifi.Install (wifiPhy, wifiMac, staWifiNode);
 
   /* Set the best antenna configurations */
-  // Simulator::ScheduleNow (&SetAntennaConfigurations, apDevice, staDevice);
+  Simulator::ScheduleNow (&SetAntennaConfigurations, apDevice, staDevice);
 
   // Set Obstacles and track location
   Ptr<Obstacle> labScenarios = CreateObject<Obstacle> ();
@@ -619,11 +628,11 @@ main(int argc, char *argv[])
   	  for (unsigned index = 0; index < sinkApplications.GetN (); ++index)
     	{
       	    uint64_t totalPacketsThrough = StaticCast<PacketSink> (sinkApplications.Get (index))->GetTotalRx ();
-      		throughput += ((totalPacketsThrough * 8) / ((simulationTime-1) * 1000000.0)); //Mbit/s
+			throughput += ((totalPacketsThrough * 8) / ((simulationTime-1) * 1000000.0)); //Mbit/s
       		std::cerr << ((totalPacketsThrough * 8) / ((simulationTime-1) * 1000000.0)) << " ";
 			// std::cerr << totalPacketsThrough*1.0/payloadSize << " ";
-			double distance = std::sqrt((clientPos.at(index).x - apPos.x)*(clientPos.at(index).x - apPos.x)+(clientPos.at(index).y - apPos.y)*(clientPos.at(index).y - apPos.y)+(clientPos.at(index).z - apPos.z)*(clientPos.at(index).z - apPos.z));
-			std::cerr << distance << " ";
+			// double distance = std::sqrt((clientPos.at(index).x - apPos.x)*(clientPos.at(index).x - apPos.x)+(clientPos.at(index).y - apPos.y)*(clientPos.at(index).y - apPos.y)+(clientPos.at(index).z - apPos.z)*(clientPos.at(index).z - apPos.z));
+			// std::cerr << distance << " ";
     	}
   	}
 
