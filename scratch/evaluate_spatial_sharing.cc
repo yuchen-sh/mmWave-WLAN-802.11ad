@@ -74,17 +74,18 @@ CalculateThroughput (Ptr<PacketSink> sink, uint64_t lastTotalRx, double averageT
   Simulator::Schedule (MilliSeconds (100), &CalculateThroughput, sink, lastTotalRx, averageThroughput);
 }
 
+/*
 void
 StationAssoicated (Ptr<DmgStaWifiMac> staWifiMac, Mac48Address address)
 {
   std::cout << "DMG STA " << staWifiMac->GetAddress () << " associated with DMG AP " << address << std::endl;
   std::cout << "Association ID (AID) = " << staWifiMac->GetAssociationID () << std::endl;
   assoicatedStations++;
-  /* Check if all stations have associated with the AP */
+  // Check if all stations have associated with the AP
   if (assoicatedStations == 4)
     {
       std::cout << "All stations got associated with " << address << std::endl;
-      /* Map AID to MAC Addresses in each node instead of requesting information */
+      // Map AID to MAC Addresses in each node instead of requesting information
       Ptr<DmgStaWifiMac> sourceStaMac, destStaMac;
       for (NetDeviceContainer::Iterator i = staDevices.Begin (); i != staDevices.End (); ++i)
         {
@@ -98,11 +99,44 @@ StationAssoicated (Ptr<DmgStaWifiMac> staWifiMac, Mac48Address address)
                 }
             }
         }
-      /* Schedule SP for Beamforming Training */
+      // Schedule SP for Beamforming Training
       apWifiMac->AllocateBeamformingServicePeriod (westWifiMac->GetAssociationID (), northWifiMac->GetAssociationID (), 0, true);
       apWifiMac->AllocateBeamformingServicePeriod (southWifiMac->GetAssociationID (), eastWifiMac->GetAssociationID (), 3000, true);
     }
 }
+*/
+
+void
+StationAssoicated (Ptr<DmgStaWifiMac> staWifiMac, Mac48Address address,  uint16_t aid)
+{
+	  std::cout << "DMG STA " << staWifiMac->GetAddress () << " associated with DMG AP " << address << std::endl;
+	  std::cout << "Association ID (AID) = " << aid << std::endl; // staWifiMac->GetAssociationID () << std::endl;
+	  assoicatedStations++;
+	  /* Check if all stations have associated with the AP */
+	  if (assoicatedStations == 4)
+		{
+		  std::cout << "All stations got associated with " << address << std::endl;
+		  /* Map AID to MAC Addresses in each node instead of requesting information */
+		  Ptr<DmgStaWifiMac> sourceStaMac, destStaMac;
+		  for (NetDeviceContainer::Iterator i = staDevices.Begin (); i != staDevices.End (); ++i)
+			{
+			  sourceStaMac = StaticCast<DmgStaWifiMac> (StaticCast<WifiNetDevice> (*i)->GetMac ());
+			  for (NetDeviceContainer::Iterator j = staDevices.Begin (); j != staDevices.End (); ++j)
+				{
+				  if (i != j)
+					{
+					  destStaMac = StaticCast<DmgStaWifiMac> (StaticCast<WifiNetDevice> (*j)->GetMac ());
+					  sourceStaMac->MapAidToMacAddress (destStaMac->GetAssociationID (), destStaMac->GetAddress ());
+					}
+				}
+			}
+		  /* Schedule SP for Beamforming Training */
+		  apWifiMac->AllocateBeamformingServicePeriod (westWifiMac->GetAssociationID (), northWifiMac->GetAssociationID (), 0, true);
+		  apWifiMac->AllocateBeamformingServicePeriod (southWifiMac->GetAssociationID (), eastWifiMac->GetAssociationID (), 3000, true);
+		}
+}
+
+
 
 void
 SLSCompleted (Ptr<DmgWifiMac> staWifiMac, SlsCompletionAttrbitutes attributes)
@@ -161,7 +195,7 @@ main (int argc, char *argv[])
   /* Global params: no fragmentation, no RTS/CTS, fixed rate for all packets */
   Config::SetDefault ("ns3::WifiRemoteStationManager::FragmentationThreshold", StringValue ("999999"));
   Config::SetDefault ("ns3::WifiRemoteStationManager::RtsCtsThreshold", StringValue ("999999"));
-  Config::SetDefault ("ns3::WifiMacQueue::MaxPacketNumber", UintegerValue (queueSize));
+  // Config::SetDefault ("ns3::WifiMacQueue::MaxPacketNumber", UintegerValue (queueSize));
 
   /**** WifiHelper is a meta-helper: it helps creates helpers ****/
   DmgWifiHelper wifi;
@@ -199,11 +233,11 @@ main (int argc, char *argv[])
   // The value correspond to DMG MCS-0.
   // The start of a valid DMG control PHY transmission at a receive level greater than the minimum sensitivity
   // for control PHY (–78 dBm) shall cause CCA to indicate busy with a probability > 90% within 3 μs.
-  wifiPhy.Set ("EnergyDetectionThreshold", DoubleValue (-78)); //CCA-SD for 802.11 signals.
+  // wifiPhy.Set ("EnergyDetectionThreshold", DoubleValue (-78)); //CCA-SD for 802.11 signals.
   // The start of a valid DMG SC PHY transmission at a receive level greater than the minimum sensitivity for
   // MCS 1 (–68 dBm) shall cause CCA to indicate busy with a probability > 90% within 1 μs. The receiver shall
   // hold the carrier sense signal busy for any signal 20 dB above the minimum sensitivity for MCS 1.
-  wifiPhy.Set ("CcaMode1Threshold", DoubleValue (-48)); // CCA-ED for non-802.11 signals.
+  // wifiPhy.Set ("CcaMode1Threshold", DoubleValue (-48)); // CCA-ED for non-802.11 signals.
   /* Set default algorithm for all nodes to be constant rate */
   wifi.SetRemoteStationManager ("ns3::ConstantRateWifiManager", "ControlMode", StringValue (phyMode),
                                                                 "DataMode", StringValue (phyMode));

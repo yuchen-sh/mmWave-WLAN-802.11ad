@@ -26,8 +26,7 @@
 
  * Network Topology:
  * The scenario consists of 8 STAs and 1 AP, and traffic models are described as follow:
- * STA2 -> STA1
- * AP -> STA4
+ *
  *
  *
  * Running Simulation:
@@ -37,7 +36,7 @@
  * 1. Throughput (Mbps)
  */
 
-NS_LOG_COMPONENT_DEFINE ("TGadEvalOfficeConfRoom");
+NS_LOG_COMPONENT_DEFINE ("TGadEvalOfficeRoom");
 
 
 
@@ -45,12 +44,30 @@ using namespace ns3;
 using namespace std;
 
 /**  Application Variables **/
-uint64_t totalRx = 0;
-double throughput = 0;
-uint32_t allocationType = 0;               /* The type of channel access scheme during DTI (CBAP is the default) */
+// uint64_t totalRx = 0;
+// double throughput = 0;
+// uint32_t allocationType = 0;               /* The type of channel access scheme during DTI (CBAP is the default) */
+
+/* Network Nodes */
+Ptr<WifiNetDevice> apWifiNetDevice;
+Ptr<WifiNetDevice> STA1WifiNetDevice, STA2WifiNetDevice, STA3WifiNetDevice, STA5WifiNetDevice;
+NetDeviceContainer staDevices;
+
+Ptr<DmgApWifiMac> apWifiMac;
+Ptr<DmgStaWifiMac> sta1WifiMac, sta2WifiMac, sta3WifiMac, sta5WifiMac;
+
+/*** Access Point Variables ***/
+uint8_t assoicatedStations = 0;           /* Total number of assoicated stations with the AP */
+uint8_t stationsTrained = 0;              /* Number of BF trained stations */
+bool scheduledStaticPeriods = false;      /* Flag to indicate whether we scheduled Static Service Periods or not */
+
+/*** Service Period ***/
+uint16_t servicePeriodDuration = 3200;    /* The duration of the allocated service periods in MicroSeconds */
+uint16_t offsetDuration = 3200;           /* The offset between the start of the two service periods in MicroSeconds */
 
 
-/*
+
+
 void
 CalculateThroughput (Ptr<PacketSink> sink, uint64_t lastTotalRx, double averageThroughput)
 {
@@ -61,14 +78,72 @@ CalculateThroughput (Ptr<PacketSink> sink, uint64_t lastTotalRx, double averageT
   averageThroughput += cur;
   Simulator::Schedule (MilliSeconds (100), &CalculateThroughput, sink, lastTotalRx, averageThroughput);
 }
-*/
+
+
+
+void
+StationAssoicated (Ptr<DmgStaWifiMac> staWifiMac, Mac48Address address)
+{
+  std::cout << "DMG STA " << staWifiMac->GetAddress () << " associated with DMG AP " << address << std::endl;
+  std::cout << "Association ID (AID) = " << staWifiMac->GetAssociationID () << std::endl;
+  assoicatedStations++;
+  /* Check if all stations have associated with the AP */
+  if (assoicatedStations == 3)
+    {
+      std::cout << "All stations got associated with " << address << std::endl;
+      /* Map AID to MAC Addresses in each node instead of requesting information */
+      Ptr<DmgStaWifiMac> sourceStaMac, destStaMac;
+      for (NetDeviceContainer::Iterator i = staDevices.Begin (); i != staDevices.End (); ++i)
+        {
+          sourceStaMac = StaticCast<DmgStaWifiMac> (StaticCast<WifiNetDevice> (*i)->GetMac ());
+          for (NetDeviceContainer::Iterator j = staDevices.Begin (); j != staDevices.End (); ++j)
+            {
+              if (i != j)
+                {
+                  destStaMac = StaticCast<DmgStaWifiMac> (StaticCast<WifiNetDevice> (*j)->GetMac ());
+                  sourceStaMac->MapAidToMacAddress (destStaMac->GetAssociationID (), destStaMac->GetAddress ());
+                }
+            }
+        }
+      /* Schedule SP for Beamforming Training */
+      apWifiMac->AllocateBeamformingServicePeriod (sta2WifiMac->GetAssociationID (), sta1WifiMac->GetAssociationID (), 0, true);
+      apWifiMac->AllocateBeamformingServicePeriod (sta3WifiMac->GetAssociationID (), sta5WifiMac->GetAssociationID (), 3000, true);
+    }
+}
+
+void
+SLSCompleted (Ptr<DmgWifiMac> staWifiMac, SlsCompletionAttrbitutes attributes)
+{
+  if (attributes.accessPeriod == CHANNEL_ACCESS_DTI)
+    {
+      std::cout << "DMG STA " << staWifiMac->GetAddress ()
+                << " completed SLS phase with DMG STA " << attributes.peerStation << std::endl;
+      std::cout << "The best antenna configuration is AntennaID=" << uint16_t (attributes.antennaID)
+                << ", SectorID=" << uint16_t (attributes.sectorID) << std::endl;
+      if ((sta2WifiMac->GetAddress () == staWifiMac->GetAddress ()) || (sta3WifiMac->GetAddress () == staWifiMac->GetAddress ()))
+        {
+          stationsTrained++;
+        }
+      if ((stationsTrained == 2) & !scheduledStaticPeriods)
+        {
+          std::cout << "Schedule Static Periods" << std::endl;
+          scheduledStaticPeriods = true;
+          /* Schedule Static Periods */
+          apWifiMac->AllocateSingleContiguousBlock (1, SERVICE_PERIOD_ALLOCATION, true, sta2WifiMac->GetAssociationID (),
+                                                    sta1WifiMac->GetAssociationID (), 0, servicePeriodDuration);
+          apWifiMac->AllocateSingleContiguousBlock (2, SERVICE_PERIOD_ALLOCATION, true, sta3WifiMac->GetAssociationID (),
+                                                    sta5WifiMac->GetAssociationID (), offsetDuration, servicePeriodDuration);
+        }
+    }
+}
+
 
 
 
 int
 main(int argc, char *argv[])
 {
-  LogComponentEnable ("TGadEvalOfficeConfRoom", LOG_LEVEL_ALL);
+  LogComponentEnable ("TGadEvalOfficeRoom", LOG_LEVEL_ALL);
   //LogComponentEnable ("MacLow", LOG_LEVEL_ALL);
   //LogComponentEnable ("EdcaTxopN", LOG_LEVEL_ALL);
   //LogComponentEnable ("Obstacle", LOG_LEVEL_ALL);
@@ -83,7 +158,7 @@ main(int argc, char *argv[])
   uint32_t queueSize = 1000;                    /* Wifi MAC Queue Size. */
   string phyMode = "DMG_MCS12";                 /* Type of the Physical Layer. */
   bool verbose = false;                         /* Print Logging Information. */
-  double simulationTime = 1.5; // 1.5 , 1.125   /* Simulation time in seconds. */
+  double simulationTime = 5; // 1.5 , 1.125   /* Simulation time in seconds. */
   bool pcapTracing = false;                     /* PCAP Tracing is enabled. */
   double x = 4.5;
   double y = 3;
@@ -102,7 +177,7 @@ main(int argc, char *argv[])
   Vector STADimension = Vector (0, 0, 0);
   Vector apPos_FOFC = Vector (1.5, 0.5, 2.9 + apDimension.z*0.5); // Vector (3.5, 6.5, 1.5 + apDimension.z*0.5); // Vector (0.1, 6.9, 2.7 + apDimension.z*0.5);
   double depSD = 1;
-  uint32_t clientNo = 3; // number of sta, must fixed at 1 for this script
+  uint32_t clientNo = 4; // number of sta, must fixed at 1 for this script
   // bool hermesFlag = 0;  // 0--Multiple static AP, 1--mobile AP
   uint16_t obsNumber = 20; // 22, 43, furniture-type obstacles
   double human_obs_ratio = 0; // if no human blockage, set as 0 // 0.5
@@ -193,7 +268,7 @@ main(int argc, char *argv[])
   cmd.AddValue ("msduAggregation", "The maximum aggregation size for A-MSDU in Bytes", msduAggregationSize);
   cmd.AddValue ("mpduAggregation", "The maximum aggregation size for A-MPDU in Bytes", mpduAggregationSize);
   cmd.AddValue ("queueSize", "The maximum size of the Wifi MAC Queue", queueSize);
-  cmd.AddValue ("scheme", "The access scheme used for channel access (0=SP,1=CBAP)", allocationType);
+  // cmd.AddValue ("scheme", "The access scheme used for channel access (0=SP,1=CBAP)", allocationType);
   cmd.AddValue ("phyMode", "802.11ad PHY Mode", phyMode);
   cmd.AddValue ("verbose", "Turn on all WifiNetDevice log components", verbose);
   cmd.AddValue ("simulationTime", "Simulation time in seconds", simulationTime);
@@ -289,12 +364,12 @@ main(int argc, char *argv[])
   // NodeContainer apWifiNode;
   // apWifiNode.Create (1);
   NodeContainer wifiNodes;
-  wifiNodes.Create (4);
+  wifiNodes.Create (5);
   Ptr<Node> apWifiNode = wifiNodes.Get (0);
   Ptr<Node> STA1Node = wifiNodes.Get (1);
   Ptr<Node> STA2Node = wifiNodes.Get (2);
-  Ptr<Node> STA4Node = wifiNodes.Get (3);
-  // Ptr<Node> eastNode = wifiNodes.Get (4);
+  Ptr<Node> STA3Node = wifiNodes.Get (3);
+  Ptr<Node> STA5Node = wifiNodes.Get (4);
 
   /* Add a DMG upper mac */
   DmgWifiMacHelper wifiMac = DmgWifiMacHelper::Default ();
@@ -316,18 +391,17 @@ main(int argc, char *argv[])
                     "Antennas", UintegerValue (1),
                     "Sectors", UintegerValue (8));
 
-  NetDeviceContainer apDevice; // sta2Device;
+  NetDeviceContainer apDevice;
   apDevice = wifi.Install (wifiPhy, wifiMac, apWifiNode);
-  // sta2Device = wifi.Install (wifiPhy, wifiMac, STA2Node);
 
   wifiMac.SetType ("ns3::DmgStaWifiMac",
                    "Ssid", SsidValue (ssid), "ActiveProbing", BooleanValue (false),
                    "BE_MaxAmpduSize", UintegerValue (mpduAggregationSize),
                    "BE_MaxAmsduSize", UintegerValue (msduAggregationSize));
 
-  NetDeviceContainer staDevices;
+  // NetDeviceContainer staDevices;
   // staDevice = wifi.Install (wifiPhy, wifiMac, staWifiNode);
-  staDevices = wifi.Install (wifiPhy, wifiMac, NodeContainer (STA1Node, STA2Node, STA4Node));
+  staDevices = wifi.Install (wifiPhy, wifiMac, NodeContainer (STA1Node, STA2Node, STA3Node, STA5Node));
 
   // Set Obstacles and track location
   Ptr<Obstacle> labScenarios = CreateObject<Obstacle> ();
@@ -432,7 +506,8 @@ main(int argc, char *argv[])
 		*/
         client_temp = {1.75, 2.3, 1.05,  // projector position, STA1
                        1.90, 1.5, 1.05,  // STA2
-                       1.30, 2.4, 1.05   // STA4
+                       1.35, 3.5, 1.05,  // STA3
+                       1.25, 1.4, 1.05   // STA5
                        };
 		
   		FixedUENumber = client_temp.size()/3;
@@ -457,8 +532,8 @@ main(int argc, char *argv[])
 
   // do LoS analysis for different physical links
   std::vector<Vector> clientPos_L1;
-  clientPos_L1.push_back(clientPos.at(2));
-  labScenarios->LoSAnalysis (apPos, clientPos_L1, apDimension); // ap -> STA4
+  clientPos_L1.push_back(clientPos.at(3));
+  labScenarios->LoSAnalysis (clientPos.at(2), clientPos_L1, apDimension); // STA3 -> STA5
 
   std::vector<Vector> clientPos_L2;
   clientPos_L2.push_back(clientPos.at(0));
@@ -466,7 +541,7 @@ main(int argc, char *argv[])
 
   // record LoS/NLoS results
   std::pair<double, double> fadingInfo; 
-  fadingInfo = labScenarios->GetFadingInfo(apPos, clientPos.at(2));
+  fadingInfo = labScenarios->GetFadingInfo(clientPos.at(2), clientPos.at(3));
   losFlag.push_back(fadingInfo.first);
   fadingInfo = labScenarios->GetFadingInfo(clientPos.at(1), clientPos.at(0));
   losFlag.push_back(fadingInfo.first);
@@ -510,10 +585,8 @@ main(int argc, char *argv[])
 
   Ipv4AddressHelper address;
   address.SetBase ("10.0.0.0", "255.255.255.0");
-  Ipv4InterfaceContainer apInterface; // sta2Interface;
+  Ipv4InterfaceContainer apInterface;
   apInterface = address.Assign (apDevice);
-  // sta2Interface = address.Assign (sta2Device); // tx
-  
   Ipv4InterfaceContainer staInterfaces;
   staInterfaces = address.Assign (staDevices);
 
@@ -549,37 +622,26 @@ main(int argc, char *argv[])
 
   /* Install UDP Server on sink Nodes */
   PacketSinkHelper sinkHelper ("ns3::UdpSocketFactory", InetSocketAddress (Ipv4Address::GetAny (), 9999));
-  ApplicationContainer sinks = sinkHelper.Install (NodeContainer (STA1Node,STA4Node));
-
-  /*
-  ApplicationContainer sinks
-  uint32_t portNumber = 9;
-  auto ipv4 = wifiNodes.Get (1)->GetObject<Ipv4> (); // STA1
-  const auto address = ipv4->GetAddress (1, 0).GetLocal ();
-  InetSocketAddress sinkSocket (address, portNumber++);
-  PacketSinkHelper packetSinkHelper ("ns3::UdpSocketFactory", sinkSocket);
-  sinks.Add (packetSinkHelper.Install (staWifiNode.Get (index)));
-  */
-  
+  ApplicationContainer sinks = sinkHelper.Install (NodeContainer (STA1Node, STA5Node));
 
   /** Install UDP Server on src Nodes for STA2 **/
-  // uint64_t STA1NodeLastTotalRx = 0;
-  // double STA1NodeAverageThroughput = 0;
+  uint64_t STA1NodeLastTotalRx = 0;
+  double STA1NodeAverageThroughput = 0;
   /* Install UDP Transmiter on the STA2 Node (Transmit to the STA1 Node) */
   ApplicationContainer srcApp1;
-  OnOffHelper src1 ("ns3::UdpSocketFactory", InetSocketAddress (staInterfaces.GetAddress (0), 9999)); // add sink socket address !!!
+  OnOffHelper src1 ("ns3::UdpSocketFactory", InetSocketAddress (staInterfaces.GetAddress (1), 9999));
   src1.SetAttribute ("MaxBytes", UintegerValue (0));
   src1.SetAttribute ("PacketSize", UintegerValue (payloadSize));
   src1.SetAttribute ("OnTime", StringValue ("ns3::ConstantRandomVariable[Constant=1e6]"));
   src1.SetAttribute ("OffTime", StringValue ("ns3::ConstantRandomVariable[Constant=0]"));
   src1.SetAttribute ("DataRate", DataRateValue (DataRate (dataRate)));
   srcApp1 = src1.Install (STA2Node);
-  srcApp1.Start (Seconds (1.0));
+  srcApp1.Start (Seconds (3.0));
 
-  /** Install UDP Server on src Nodes for AP **/
-  // uint64_t APNodeLastTotalRx = 0;
-  // double APNodeAverageThroughput = 0;
-  /* Install UDP Transmiter on the AP Node (Transmit to the STA4 Node) */
+  /** Install UDP Server on src Nodes for STA4 **/
+  uint64_t STA5NodeLastTotalRx = 0;
+  double STA5NodeAverageThroughput = 0;
+  /* Install UDP Transmiter on the STA3 Node (Transmit to the STA5 Node) */
   ApplicationContainer srcApp2;
   OnOffHelper src2 ("ns3::UdpSocketFactory", InetSocketAddress (staInterfaces.GetAddress (2), 9999));
   src2.SetAttribute ("MaxBytes", UintegerValue (0));
@@ -587,35 +649,38 @@ main(int argc, char *argv[])
   src2.SetAttribute ("OnTime", StringValue ("ns3::ConstantRandomVariable[Constant=1e6]"));
   src2.SetAttribute ("OffTime", StringValue ("ns3::ConstantRandomVariable[Constant=0]"));
   src2.SetAttribute ("DataRate", DataRateValue (DataRate (dataRate)));
-  srcApp2 = src2.Install (apWifiNode);
-  srcApp2.Start (Seconds (1.0));
+  srcApp2 = src2.Install (STA3Node);
+  srcApp2.Start (Seconds (3.0));
 
 
   // endRunTime=clock();
   
   
-  sinks.Start (Seconds (0.0));
-  sinks.Stop (Seconds (simulationTime));
-  // sourceApplications.Start (Seconds (1.0));
-  srcApp1.Stop (Seconds (simulationTime));
-  srcApp2.Stop (Seconds (simulationTime));
+  // sinks.Start (Seconds (0.0));
+  // sinks.Stop (Seconds (simulationTime));
+  // // sourceApplications.Start (Seconds (1.0));
+  // srcApp1.Stop (Seconds (simulationTime));
+  // srcApp2.Stop (Seconds (simulationTime));
 
 
  
   /* Schedule Throughput Calulcations */
-  // Simulator::Schedule (Seconds (1.1), &CalculateThroughput, StaticCast<PacketSink> (sinks.Get (0)),
-                    //   STA1NodeLastTotalRx, STA1NodeAverageThroughput);
+  Simulator::Schedule (Seconds (3.1), &CalculateThroughput, StaticCast<PacketSink> (sinks.Get (0)),
+                       STA1NodeLastTotalRx, STA1NodeAverageThroughput);
 
-  // Simulator::Schedule (Seconds (1.1), &CalculateThroughput, StaticCast<PacketSink> (sinks.Get (1)),
-                    //   APNodeLastTotalRx, APNodeAverageThroughput);
+  Simulator::Schedule (Seconds (3.1), &CalculateThroughput, StaticCast<PacketSink> (sinks.Get (1)),
+                       STA5NodeLastTotalRx, STA5NodeAverageThroughput);
   
 
   /* Print Traces */
   if (pcapTracing)
     {
-      wifiPhy.SetPcapDataLinkType (DmgWifiPhyHelper::DLT_IEEE802_11_RADIO);
+      wifiPhy.SetPcapDataLinkType (WifiPhyHelper::DLT_IEEE802_11_RADIO);
       wifiPhy.EnablePcap ("Traces/AccessPoint", apDevice, false);
-      wifiPhy.EnablePcap ("Traces/Station", staDevices, false);
+      wifiPhy.EnablePcap ("Traces/STA1", staDevices.Get (0), false);
+      wifiPhy.EnablePcap ("Traces/STA2", staDevices.Get (1), false);
+      wifiPhy.EnablePcap ("Traces/STA3", staDevices.Get (2), false);
+      wifiPhy.EnablePcap ("Traces/STA5", staDevices.Get (3), false);
     }
 
   /*apWifiNetDevice = StaticCast<WifiNetDevice> (apDevice.Get (0));
@@ -624,24 +689,49 @@ main(int argc, char *argv[])
   staWifiMac = StaticCast<DmgStaWifiMac> (staWifiNetDevice->GetMac ());
   staWifiMac->TraceConnectWithoutContext ("Assoc", MakeBoundCallback (&StationAssoicated, staWifiMac));*/
 
-  Simulator::Stop (Seconds (simulationTime + 1));
+
+  /* DMG Stations */
+  apWifiNetDevice = StaticCast<WifiNetDevice> (apDevice.Get (0));
+  STA1WifiNetDevice = StaticCast<WifiNetDevice> (staDevices.Get (0));
+  STA2WifiNetDevice = StaticCast<WifiNetDevice> (staDevices.Get (1));
+  STA3WifiNetDevice = StaticCast<WifiNetDevice> (staDevices.Get (2));
+  STA5WifiNetDevice = StaticCast<WifiNetDevice> (staDevices.Get (3));
+
+  apWifiMac = StaticCast<DmgApWifiMac> (apWifiNetDevice->GetMac ());
+  sta1WifiMac = StaticCast<DmgStaWifiMac> (STA1WifiNetDevice->GetMac ());
+  sta2WifiMac = StaticCast<DmgStaWifiMac> (STA2WifiNetDevice->GetMac ());
+  sta3WifiMac = StaticCast<DmgStaWifiMac> (STA3WifiNetDevice->GetMac ());
+  sta5WifiMac = StaticCast<DmgStaWifiMac> (STA5WifiNetDevice->GetMac ());
+
+  /** Connect Traces **/
+  sta1WifiMac->TraceConnectWithoutContext ("Assoc", MakeBoundCallback (&StationAssoicated, sta1WifiMac));
+  sta2WifiMac->TraceConnectWithoutContext ("Assoc", MakeBoundCallback (&StationAssoicated, sta2WifiMac));
+  sta3WifiMac->TraceConnectWithoutContext ("Assoc", MakeBoundCallback (&StationAssoicated, sta3WifiMac));
+  sta5WifiMac->TraceConnectWithoutContext ("Assoc", MakeBoundCallback (&StationAssoicated, sta5WifiMac));
+
+  sta1WifiMac->TraceConnectWithoutContext ("SLSCompleted", MakeBoundCallback (&SLSCompleted, sta1WifiMac));
+  sta2WifiMac->TraceConnectWithoutContext ("SLSCompleted", MakeBoundCallback (&SLSCompleted, sta2WifiMac));
+  sta3WifiMac->TraceConnectWithoutContext ("SLSCompleted", MakeBoundCallback (&SLSCompleted, sta3WifiMac));
+  sta5WifiMac->TraceConnectWithoutContext ("SLSCompleted", MakeBoundCallback (&SLSCompleted, sta5WifiMac));
+
+
+  Simulator::Stop (Seconds (simulationTime));
   Simulator::Run ();
   Simulator::Destroy ();
 
+  /*
   // Print Results Summary
   // std::cerr << i << " " << centerLocation << " "  << clientRS << " "  << apPos << " ";
   // std::copy(clientPos.begin(), clientPos.end(), std::ostream_iterator<Vector>(std::cerr, " "));
-  // std::copy(losFlag.begin(), losFlag.end(), std::ostream_iterator<bool>(std::cerr, " "));
+  std::copy(losFlag.begin(), losFlag.end(), std::ostream_iterator<bool>(std::cerr, " "));
   for (unsigned index = 0; index < sinks.GetN (); ++index)
     {
-        std::cerr << losFlag.at(index) << " "; // LoS/NLoS info
       	uint64_t totalPacketsThrough = StaticCast<PacketSink> (sinks.Get (index))->GetTotalRx ();
       	throughput += ((totalPacketsThrough * 8) / ((simulationTime-1) * 1000000.0)); //Mbit/s
       	std::cerr << ((totalPacketsThrough * 8) / ((simulationTime-1) * 1000000.0)) << " ";
 		// std::cerr << totalPacketsThrough*1.0/payloadSize << " ";
 		// double distance = std::sqrt((clientPos.at(index).x - apPos.x)*(clientPos.at(index).x - apPos.x)+(clientPos.at(index).y - apPos.y)*(clientPos.at(index).y - apPos.y)+(clientPos.at(index).z - apPos.z)*(clientPos.at(index).z - apPos.z));
 		// std::cerr << distance << " ";
-		std::cerr << std::endl;
     }
 
   // endRunTime=clock();
@@ -649,6 +739,7 @@ main(int argc, char *argv[])
   // std::cerr << totaltime << " ";
   
   std::cerr << std::endl;
+  */
   
   return 0;
 }
