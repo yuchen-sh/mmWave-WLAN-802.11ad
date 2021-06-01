@@ -30,7 +30,8 @@
  *
  *
  * Running Simulation:
- * ./waf --run "TGad_performance_evaluation_living_room"
+ * ./waf --run "TGad_performance_evaluation_living_room --humanBlock=false"  (LoS channel)
+ * ./waf --run "TGad_performance_evaluation_living_room --humanBlock=true"  (NLoS channel)
  *
  * Simulation Output:
  * 1. LoS/NLoS status (LoS -- 0; NLoS -- 1)
@@ -62,6 +63,7 @@ main(int argc, char *argv[])
 
   uint32_t payloadSize = 1472;                  /* Application payload size in bytes. */
   string dataRate = "4500Mbps";                 /* Application data rate. */
+  string uncompVideoRate = "3000Mbps";          /* 1080p, 1920*1080 */
   uint32_t msduAggregationSize = 8000; // 7935; /* The maximum aggregation size for A-MSDU in Bytes. */
   uint32_t mpduAggregationSize = 262143;        /* The maximum aggregation size for A-MSPU in Bytes. */
   uint32_t queueSize = 1000;                    /* Wifi MAC Queue Size. */
@@ -83,12 +85,12 @@ main(int argc, char *argv[])
   // Vector trackSize = Vector(0, 0.065, 0.047); // x dimension is a parameter to be changed
   // double moveStep = 0.1;
   Vector apDimension = Vector (0.23, 0.23, 0.12);
-  Vector apPos_FOFC = Vector (5.3, 6.5, 1.5 + apDimension.z*0.5); // Vector (3.5, 6.5, 1.5 + apDimension.z*0.5); // Vector (0.1, 6.9, 2.7 + apDimension.z*0.5);
+  Vector apPos_FOFC = Vector (5.3, 6.35, 1.5 + apDimension.z*0.5); // Vector (3.5, 6.5, 1.5 + apDimension.z*0.5); // Vector (0.1, 6.9, 2.7 + apDimension.z*0.5);
   double depSD = 1;
   uint32_t clientNo = 1; // number of sta, must fixed at 1 for this script
   // bool hermesFlag = 0;  // 0--Multiple static AP, 1--mobile AP
-  uint16_t obsNumber = 20; // 22, 43, furniture-type obstacles
-  double human_obs_ratio = 0; // if no human blockage, set as 0 // 0.5
+  uint16_t obsNumber = 20; // 22, 43, obstacles
+  double human_obs_ratio = 0; // if no human blockage, set as 0. NOTE: only used for RORC mode
   // bool SV_channel = false; // enable SV channel
   bool TGad_channel = true; // enable TGad_channel
   int reflectorDenseMode = 2; // 1/2/3 -> lower/medium/higher density of highly-reflective objects in the room
@@ -96,6 +98,40 @@ main(int argc, char *argv[])
   bool mobilityUE = 0; // 0--static, 1--mobile (random walk)
   bool obsConflictCheck = false; // true--checking obstacle conflicts when allocating obstacles
   bool FOFC = true; // true -- allocate fixed obstacles and clients in the scenario; false: randomly generate obstacles and clients
+  bool humanBlock = false; // true -- enable a human obstacle that blocks the link btw STB and TV
+
+
+
+  /* Command line argument parser setup. */
+  CommandLine cmd;
+  cmd.AddValue ("payloadSize", "Application payload size in bytes", payloadSize);
+  cmd.AddValue ("dataRate", "Application data rate", dataRate);
+  cmd.AddValue ("msduAggregation", "The maximum aggregation size for A-MSDU in Bytes", msduAggregationSize);
+  cmd.AddValue ("mpduAggregation", "The maximum aggregation size for A-MPDU in Bytes", mpduAggregationSize);
+  cmd.AddValue ("queueSize", "The maximum size of the Wifi MAC Queue", queueSize);
+  cmd.AddValue ("scheme", "The access scheme used for channel access (0=SP,1=CBAP)", allocationType);
+  cmd.AddValue ("phyMode", "802.11ad PHY Mode", phyMode);
+  cmd.AddValue ("verbose", "Turn on all WifiNetDevice log components", verbose);
+  cmd.AddValue ("simulationTime", "Simulation time in seconds", simulationTime);
+  cmd.AddValue ("pcap", "Enable PCAP Tracing", pcapTracing);
+  cmd.AddValue ("humanBlock", "Enable human obstacle", humanBlock);
+  cmd.AddValue ("x", "ap x", x);
+  cmd.AddValue ("y", "ap y", y);
+  cmd.AddValue ("i", "simulation iteration", i);
+  cmd.AddValue ("ii", "simulation iteration ii", ii);
+  cmd.AddValue ("z", "ap z", z);
+  // cmd.AddValue ("centerLocation", "center Location Type", centerLocation);
+  // cmd.AddValue ("platformSize", "platform Size", platformSize); 
+  cmd.AddValue ("clientRS", "random seed for client", clientRS);
+  cmd.AddValue ("clientDistType", "distribution type for client", clientDistType);
+  cmd.AddValue ("distRS", "random seed for truncated normal distribution", distRS);
+  cmd.AddValue ("depSD", "random seed for dependent distribution", depSD);
+  cmd.AddValue ("clientNo", "Number of client", clientNo);
+  // cmd.AddValue ("hermesFlag", "0 means static AP scenario, 1 means hermes scenario", hermesFlag);
+  // cmd.AddValue ("shapeCategary", "shape Categary", shapeCategary);
+  cmd.AddValue ("obsNumber", "obstacle Number", obsNumber);  
+  cmd.Parse (argc, argv);
+
 
   std::vector<double> xPos, yPos, wObs, lObs, hObs, dirObs, hObs_min;
   // double a;
@@ -133,8 +169,19 @@ main(int argc, char *argv[])
               0.8, 1.2, 1.2, 1.26, 0.8, 1.2, 1.2, 1.26, 1.1, 1.03, 1.03, 1.03, 1.03, 0.8, 1.2, 1.2, 1.26, 1.5, 
               90, 0, 0, 90, 0, 90, 90, 0, 90, 0, 0, 0, 0, 45, 135, 135, 45, 0,
               2.6, 2.6, 2.6, 2.18, 4.3, 3.24, 5.36, 4.3, 4.3, 4.1, 4.5, 4.1, 4.5, 5.36, 5, 5.72, 5.36, 4.5,
-              3.5, 2.44, 4.56, 3.5, 1.65, 1.65, 1.65, 1.23, 3.5, 4.15, 4.15, 2.85, 2.85, 5.1, 5.1, 5.1, 5.47, 6.75,
+              3.5, 2.44, 4.56, 3.5, 1.65, 1.65, 1.65, 1.23, 3.5, 4.15, 4.15, 2.85, 2.85, 5.1, 5.1, 5.1, 5.47, 6.25,
               0, 0, 0, 0, 0, 0, 0, 0, 1.03, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+
+  if (humanBlock == true)// add one human obstacle
+  	{
+      obs_temp = {2.0, 0.7, 0.7, 2.24, 2.0, 0.7, 0.7, 2.24, 1.5, 0.05, 0.05, 0.05, 0.05, 0.6, 0.7, 0.7, 0.84, 1.6, 0.5,
+              0.7, 0.12, 0.12, 0.14, 0.7, 0.12, 0.12, 0.14, 0.6, 0.05, 0.05, 0.05, 0.05, 0.6, 0.12, 0.12, 0.14, 0.5, 0.2,
+              0.8, 1.2, 1.2, 1.26, 0.8, 1.2, 1.2, 1.26, 1.1, 1.03, 1.03, 1.03, 1.03, 0.8, 1.2, 1.2, 1.26, 1.5, 1.75,
+              90, 0, 0, 90, 0, 90, 90, 0, 90, 0, 0, 0, 0, 45, 135, 135, 45, 0, 45,
+              2.6, 2.6, 2.6, 2.18, 4.3, 3.24, 5.36, 4.3, 4.3, 4.1, 4.5, 4.1, 4.5, 5.36, 5, 5.72, 5.36, 4.5, 6.2,
+              3.5, 2.44, 4.56, 3.5, 1.65, 1.65, 1.65, 1.23, 3.5, 4.15, 4.15, 2.85, 2.85, 5.1, 5.1, 5.1, 5.47, 6.6, 5.05,
+              0, 0, 0, 0, 0, 0, 0, 0, 1.03, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+  	}
   
   obsNumber = obs_temp.size()/7;
   for (uint16_t io = 0; io < obs_temp.size(); ++io)
@@ -172,34 +219,6 @@ main(int argc, char *argv[])
   	}
 
   
-  /* Command line argument parser setup. */
-  CommandLine cmd;
-  cmd.AddValue ("payloadSize", "Application payload size in bytes", payloadSize);
-  cmd.AddValue ("dataRate", "Application data rate", dataRate);
-  cmd.AddValue ("msduAggregation", "The maximum aggregation size for A-MSDU in Bytes", msduAggregationSize);
-  cmd.AddValue ("mpduAggregation", "The maximum aggregation size for A-MPDU in Bytes", mpduAggregationSize);
-  cmd.AddValue ("queueSize", "The maximum size of the Wifi MAC Queue", queueSize);
-  cmd.AddValue ("scheme", "The access scheme used for channel access (0=SP,1=CBAP)", allocationType);
-  cmd.AddValue ("phyMode", "802.11ad PHY Mode", phyMode);
-  cmd.AddValue ("verbose", "Turn on all WifiNetDevice log components", verbose);
-  cmd.AddValue ("simulationTime", "Simulation time in seconds", simulationTime);
-  cmd.AddValue ("pcap", "Enable PCAP Tracing", pcapTracing);
-  cmd.AddValue ("x", "ap x", x);
-  cmd.AddValue ("y", "ap y", y);
-  cmd.AddValue ("i", "simulation iteration", i);
-  cmd.AddValue ("ii", "simulation iteration ii", ii);
-  cmd.AddValue ("z", "ap z", z);
-  // cmd.AddValue ("centerLocation", "center Location Type", centerLocation);
-  // cmd.AddValue ("platformSize", "platform Size", platformSize); 
-  cmd.AddValue ("clientRS", "random seed for client", clientRS);
-  cmd.AddValue ("clientDistType", "distribution type for client", clientDistType);
-  cmd.AddValue ("distRS", "random seed for truncated normal distribution", distRS);
-  cmd.AddValue ("depSD", "random seed for dependent distribution", depSD);
-  cmd.AddValue ("clientNo", "Number of client", clientNo);
-  // cmd.AddValue ("hermesFlag", "0 means static AP scenario, 1 means hermes scenario", hermesFlag);
-  // cmd.AddValue ("shapeCategary", "shape Categary", shapeCategary);
-  cmd.AddValue ("obsNumber", "obstacle Number", obsNumber);  
-  cmd.Parse (argc, argv);
 
   // set human obstacle number
   uint16_t obsNumber_human = (uint16_t)(floor(obsNumber*1.0*human_obs_ratio));
@@ -504,7 +523,7 @@ main(int argc, char *argv[])
       src.SetAttribute ("PacketSize", UintegerValue (payloadSize));
       src.SetAttribute ("OnTime", StringValue ("ns3::ConstantRandomVariable[Constant=1e6]"));
       src.SetAttribute ("OffTime", StringValue ("ns3::ConstantRandomVariable[Constant=0]"));
-      src.SetAttribute ("DataRate", DataRateValue (DataRate (dataRate)));
+      src.SetAttribute ("DataRate", DataRateValue (DataRate (uncompVideoRate)));
       sourceApplications.Add (src.Install (apWifiNode.Get (0)));
       PacketSinkHelper packetSinkHelper ("ns3::UdpSocketFactory", sinkSocket);
       sinkApplications.Add (packetSinkHelper.Install (staWifiNode.Get (index)));
@@ -545,8 +564,8 @@ main(int argc, char *argv[])
       	throughput += ((totalPacketsThrough * 8) / ((simulationTime-1) * 1000000.0)); //Mbit/s
       	std::cerr << ((totalPacketsThrough * 8) / ((simulationTime-1) * 1000000.0)) << " ";
 		// std::cerr << totalPacketsThrough*1.0/payloadSize << " ";
-		// double distance = std::sqrt((clientPos.at(index).x - apPos.x)*(clientPos.at(index).x - apPos.x)+(clientPos.at(index).y - apPos.y)*(clientPos.at(index).y - apPos.y)+(clientPos.at(index).z - apPos.z)*(clientPos.at(index).z - apPos.z));
-		// std::cerr << distance << " ";
+		double distance = std::sqrt((clientPos.at(index).x - apPos.x)*(clientPos.at(index).x - apPos.x)+(clientPos.at(index).y - apPos.y)*(clientPos.at(index).y - apPos.y)+(clientPos.at(index).z - apPos.z)*(clientPos.at(index).z - apPos.z));
+		std::cerr << distance << " ";
     }
 
   // endRunTime=clock();
