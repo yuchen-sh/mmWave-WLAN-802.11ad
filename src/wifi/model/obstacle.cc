@@ -623,6 +623,164 @@ Obstacle::AllocateObstacle(Box railLocation, Vector roomSize, uint16_t clientRS)
 }
 
 
+void
+Obstacle::AllocateObstacle_human(Box railLocation, Vector roomSize, uint16_t clientRS)
+{
+  NS_LOG_FUNCTION (this);
+  m_roomSize = roomSize;
+  std::vector<Box> m_obstacleDimensionComparison;  
+  uint16_t granularity = 10;
+
+  bool obsConflictCheckFlag = m_OnObsConflictCheck;
+
+  //--- GSL random init ---
+  gsl_rng_env_setup();                          // Read variable environnement
+  const gsl_rng_type* type = gsl_rng_default;   // Default algorithm 'twister'
+  gsl_rng *gen = gsl_rng_alloc (type);          // Rand generator allocation
+  gsl_rng_set(gen, 2);
+
+  // each run with different scenario case
+  RngSeedManager::SetSeed (7);
+
+  // Allocate Human blockage
+  if (m_obstalceNumber_human > 0)
+  	{
+  	   // Poisson point process obstacle number identification
+  		double lambda = m_obstalceNumber_human/(m_roomSize.x*m_roomSize.y*granularity*granularity);
+  		double poissonProb = exp (-lambda)*lambda;
+  		uint16_t obstalceNoPlacement_hm = 0;
+  		for (uint16_t t=0; t<m_roomSize.x*m_roomSize.y*granularity*granularity; t++)
+     	{
+     	    bool ifConflict = true; // init
+       		RngSeedManager::SetSeed (2);
+       		Ptr<UniformRandomVariable> obstacleNoUV_hm = CreateObject<UniformRandomVariable> ();
+       		obstacleNoUV_hm->SetAttribute ("Min", DoubleValue (0.0));
+       		obstacleNoUV_hm->SetAttribute ("Max", DoubleValue (1.0));
+       		double probability = obstacleNoUV_hm->GetValue ();
+			bool outsideroomFlag = false;
+
+       		// Place obstacle based on Poisson point process 
+       		if (probability < poissonProb)
+         	{
+         	  double x, y;
+		      std::pair<double, double> obstacleXRange, obstacleYRange, obstacleZRange;
+         	  while (ifConflict == true)
+           	  {
+           		x = (double) (t % (uint16_t)(m_roomSize.x * granularity))/granularity + 0.05;
+           		y = floor (t/(m_roomSize.x * granularity))/granularity + 0.05; 
+
+           		// Define size of obstacle
+           		// std::pair<double, double> obstacleXRange, obstacleYRange, obstacleZRange;
+           		std::vector<double> tempXDistConf = m_xObsTNDistConf_human;
+           		std::vector<double> tempYDistConf = m_yObsTNDistConf_human;
+           		if (m_roomSize.x - x < tempXDistConf.at(1) * 0.5 || x < tempXDistConf.at(1) * 0.5)
+            	 	tempXDistConf.at(1) = (m_roomSize.x - x > x)?x*2:2*(m_roomSize.x-x);
+           		if (m_roomSize.y - y < tempYDistConf.at(1) * 0.5 || y < tempYDistConf.at(1) * 0.5)
+             		tempYDistConf.at(1) = (m_roomSize.y - y > y)?y*2:2*(m_roomSize.y-y);
+		//           NS_LOG_FUNCTION (this << tempXDistConf.at(1) << tempXDistConf.at(0) << tempYDistConf.at(1));
+           		// if (tempXDistConf.at(1) <= tempXDistConf.at(0) || tempYDistConf.at(1) <= tempYDistConf.at(0))
+             		// continue;
+				if (tempXDistConf.at(1) <= tempXDistConf.at(0) || tempYDistConf.at(1) <= tempYDistConf.at(0))
+           		{
+             		outsideroomFlag = true; // continue;
+             		break;
+           		}
+
+           		obstacleXRange = m_tNDist->rtnorm(gen,tempXDistConf.at(0),tempXDistConf.at(1),tempXDistConf.at(2),tempXDistConf.at(3));
+           		obstacleYRange = m_tNDist->rtnorm(gen,tempYDistConf.at(0),tempYDistConf.at(1),tempYDistConf.at(2),tempYDistConf.at(3));
+           		obstacleZRange = m_tNDist->rtnorm(gen,m_zObsTNDistConf_human.at(0),m_zObsTNDistConf_human.at(1),m_zObsTNDistConf_human.at(2),m_zObsTNDistConf_human.at(3));
+
+                // collision detection
+		   		if ((m_obstacleDimensionComparison.empty() == false)&& (obsConflictCheckFlag == true))
+		   		{
+		   	   		ifConflict = RecCollision(m_obstacleDimensionComparison, x, y, obstacleXRange.first, obstacleYRange.first);
+				}
+				else
+				{
+				    ifConflict = false;
+				}
+
+         	  }
+
+			  if (outsideroomFlag == true)
+		   	  { 
+		   	    outsideroomFlag = false;
+		   	    continue;
+		   	  }
+				
+           	  NS_LOG_FUNCTION (this << obstacleXRange.first << obstacleYRange.first << m_obstalceNumber_human);
+           	  m_obstacleDimension.push_back(Box (x-obstacleXRange.first*0.5, x+obstacleXRange.first*0.5, y-obstacleYRange.first*0.5, y+obstacleYRange.first*0.5, 0, obstacleZRange.first));
+				/*
+           		// collision detection
+           		m_obstacleDimensionComparison.push_back(railLocation);
+           		m_obstacleDimensionComparison.push_back(m_obstacleDimension.at(obstalceNoPlacement));
+
+           		m_obstacleDimensionComparison.push_back(m_obstacleDimension.at(obstalceNoPlacement));
+				*/
+			  m_obstacleDimensionComparison.push_back(m_obstacleDimension.at(m_obstalceNumber + obstalceNoPlacement_hm));
+           	  obstalceNoPlacement_hm++;
+         	  
+         	} 
+     	}
+  		m_obstalceNumber_human = obstalceNoPlacement_hm;
+
+  		// Change human obstacle location based on Poisson distribution (orientation)
+  		for (uint16_t i=0; i<m_obstalceNumber_human*0.1; i++)
+    	{
+      		Ptr<UniformRandomVariable> obstacleIdUV = CreateObject<UniformRandomVariable> ();
+      		obstacleIdUV->SetAttribute ("Min", DoubleValue (m_obstalceNumber*1.0));
+      		obstacleIdUV->SetAttribute ("Max", DoubleValue (m_obstalceNumber_human-0.01));
+      		uint16_t obstacleId = floor(obstacleIdUV->GetValue ());  
+
+      		std::default_random_engine generator;
+      		std::poisson_distribution<int> distribution(0.1);
+      		for (uint16_t j=0; j<clientRS/10; j++)
+        	{
+         		uint16_t movingFlag = distribution(generator);
+          		//std::cout << movingFlag << std::endl;
+          		Ptr<UniformRandomVariable> movingAxisUV = CreateObject<UniformRandomVariable> ();
+          		movingAxisUV->SetAttribute ("Min", DoubleValue (0.0));
+          		movingAxisUV->SetAttribute ("Max", DoubleValue (PI*2));
+          		uint16_t movingAngle = movingAxisUV->GetValue ();
+
+          		if (movingFlag > 0)
+            	{
+              		if (m_obstacleDimension.at(obstacleId).xMax+0.1*cos(movingAngle)<m_roomSize.x && m_obstacleDimension.at(obstacleId).xMin+0.1*cos(movingAngle)>0)
+                	{
+                  		m_obstacleDimension.at(obstacleId).xMin += 0.1*cos(movingAngle);
+                  		m_obstacleDimension.at(obstacleId).xMax += 0.1*cos(movingAngle);
+                	}
+              		if (m_obstacleDimension.at(obstacleId).yMax+0.1*sin(movingAngle)<m_roomSize.y && m_obstacleDimension.at(obstacleId).yMin+0.1*cos(movingAngle)>0)
+                	{
+                  		m_obstacleDimension.at(obstacleId).yMin += 0.1*sin(movingAngle);
+                  		m_obstacleDimension.at(obstacleId).yMax += 0.1*sin(movingAngle);               
+                	} 
+            	}
+        	}
+    	}
+
+  		// Allocate obstacle type for penetration analysis
+ 		 for(uint16_t j=0; j<m_obstalceNumber_human; j++)
+    	  { 
+    	    /*
+       		ofs << m_obstacleDimension.at(j) << std::endl;
+       		NS_LOG_FUNCTION (this << m_obstalceNumber << m_obstacleDimension.at(j));
+       		Ptr<UniformRandomVariable> obstacleIndex = CreateObject<UniformRandomVariable> ();
+       		obstacleIndex->SetAttribute ("Min", DoubleValue (0.0));
+       		obstacleIndex->SetAttribute ("Max", DoubleValue (9.99));
+       		int index = floor(obstacleIndex->GetValue ());
+       		*/
+       		Ptr<UniformRandomVariable> humanPenloss = CreateObject<UniformRandomVariable> ();
+       		humanPenloss->SetAttribute ("Min", DoubleValue (25.0));
+       		humanPenloss->SetAttribute ("Max", DoubleValue (30.0));
+       		double penlossVal = humanPenloss->GetValue ();
+       		m_obstaclePenetrationLoss.push_back (penlossVal); // human penetration loss between 25~30
+    	  }
+  	}
+  
+}
+
+
 
 void
 Obstacle::AllocateObstacle_Fixed(Box railLocation, Vector roomSize, uint16_t clientRS, std::vector<double> xPos, std::vector<double> yPos, std::vector<double> wObs, std::vector<double> lObs, std::vector<double> hObs, std::vector<double> dirObs)

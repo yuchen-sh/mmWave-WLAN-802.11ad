@@ -62,6 +62,7 @@ public:
   
   bool RecCollision(std::vector<Box> preObs, double cx, double cy, double length, double width);
   void AllocateObstacle (Box railLocation, Vector roomSize,  uint16_t clientRS);
+  void AllocateObstacle_human (Box railLocation, Vector roomSize,  uint16_t clientRS);
   // determine the optimal locations of APs
   std::vector<Vector> AllocateOptAP (Vector roomSize,  uint16_t numAPs);
   // for FORC scenarios
