@@ -23,16 +23,16 @@
 
 /**
  * Simulation Objective:
- * This script is used to evaluate the performance of living room scenario defined in TGad Evaluation document 
+ * This script is used to evaluate the performance of office conference room scenario defined in TGad Evaluation document 
 
  * Network Topology:
- * The scenario consists of 1 set-top box (STB) and 1 TV, and traffic model is uncompressed videos.
+ * The scenario consists of 1 AP and 8 STAs, and traffic model includes uncompressed ...
  *
  *
  *
  * Running Simulation:
- * ./waf --run "TGad_performance_evaluation_living_room --humanBlock=false"  (LoS channel)
- * ./waf --run "TGad_performance_evaluation_living_room --humanBlock=true"  (NLoS channel)
+ * ./waf --run "TGad_performance_evaluation_office_room"  (disable human blockages)
+ * ./waf --run "TGad_performance_evaluation_office_room --humanBlock=true"  (enable human blockages)
  *
  * Simulation Output:
  * 1. LoS/NLoS status (LoS -- 0; NLoS -- 1)
@@ -92,11 +92,12 @@ main(int argc, char *argv[])
   Vector ProjectorDimension = Vector (0.5, 0.3, 0.12);
   Vector MobileDeviceDimension = Vector (0.08, 0.05, 0.15);
   uint16_t numSTAs = 8;
+  uint16_t numCommPair = 10;
   double depSD = 1;
   uint32_t clientNo = 1; // number of sta, must fixed at 1 for this script
   // bool hermesFlag = 0;  // 0--Multiple static AP, 1--mobile AP
   uint16_t obsNumber = 20; // 22, 43, obstacles
-  uint16_t human_obs = 4; // if no human blockage, set as 0.
+  uint16_t human_obs = 3; // if no human blockage, set as 0.
   // bool SV_channel = false; // enable SV channel
   bool TGad_channel = true; // enable TGad_channel
   int reflectorDenseMode = 2; // 1/2/3 -> lower/medium/higher density of highly-reflective objects in the room
@@ -121,7 +122,7 @@ main(int argc, char *argv[])
   cmd.AddValue ("simulationTime", "Simulation time in seconds", simulationTime);
   cmd.AddValue ("pcap", "Enable PCAP Tracing", pcapTracing);
   cmd.AddValue ("humanBlock", "Enable human obstacle", humanBlock);
-  cmd.AddValue ("commID", "communication pair ID", commID);
+  // cmd.AddValue ("commID", "communication pair ID", commID);
   cmd.AddValue ("x", "ap x", x);
   cmd.AddValue ("y", "ap y", y);
   cmd.AddValue ("i", "simulation iteration", i);
@@ -153,6 +154,8 @@ main(int argc, char *argv[])
   STApos.push_back(Vector (1.6, 3.25, 1.0 + MobileDeviceDimension.z*0.5)); // STA8
   
 
+  for (commID = 1; commID <= numCommPair; ++commID)
+  {  
   // furniture-type obstacles
   std::vector<double> xPos, yPos, wObs, lObs, hObs, dirObs, hObs_min;
   // double a;
@@ -234,6 +237,162 @@ main(int argc, char *argv[])
   std::vector<double> deviceWidth = {apDimension.y, ProjectorDimension.y, MobileDeviceDimension.y, LaptopDimension.y, LaptopDimension.y, LaptopDimension.y, LaptopDimension.y, LaptopDimension.y, MobileDeviceDimension.y};
   std::vector<double> deviceHeight = {2.9+apDimension.z, 1.0+ProjectorDimension.z, 1.0+MobileDeviceDimension.z, 1.0+LaptopDimension_sc.z, 1.0+LaptopDimension_sc.z, 1.0+LaptopDimension_sc.z, 1.0+LaptopDimension_sc.z, 1.0+LaptopDimension_sc.z, 1.0+MobileDeviceDimension.z};
   std::vector<double> deviceHeight_base = {2.9, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0};
+  
+  // set human obstacle number
+  uint16_t obsNumber_human = 0;
+  if (humanBlock == true)
+  	{
+      obsNumber_human = human_obs;
+  	}
+
+
+  // scale parameter due to shell script without float value
+  // platformSize = platformSize*0.1;
+  depSD = depSD*0.1;
+
+  /* Global params: no fragmentation, no RTS/CTS, fixed rate for all packets */
+  Config::SetDefault ("ns3::WifiRemoteStationManager::FragmentationThreshold", StringValue ("999999"));
+  Config::SetDefault ("ns3::WifiRemoteStationManager::RtsCtsThreshold", StringValue ("999999"));
+
+  /**** WifiHelper is a meta-helper: it helps creates helpers ****/
+  DmgWifiHelper wifi;
+  wifi.SetStandard (WIFI_PHY_STANDARD_80211ad); // set up the standard
+
+  /* Turn on logging */
+  if (verbose)
+    {
+      wifi.EnableLogComponents ();
+      LogComponentEnable ("CompareAccessSchemes", LOG_LEVEL_ALL);
+    }
+
+  // NS_LOG_INFO("Logging" << verbose);  
+
+  // Set scenario object
+  Ptr<Obstacle> labScenarios = CreateObject<Obstacle> ();
+
+  // labScenarios->EnableSVChannel(SV_channel);
+  labScenarios->EnableTGadChannel(TGad_channel);
+  labScenarios->SetReflectedMode(reflectorDenseMode);
+  // set penetration loss mode
+  std::vector<double> obstaclePenetrationLoss;
+  if (reflectorDenseMode == 1)
+  	{
+  	  obstaclePenetrationLoss = labScenarios->m_obstaclePenetrationLoss_low;
+  	}
+  else if (reflectorDenseMode == 2)
+  	{
+  	  obstaclePenetrationLoss = labScenarios->m_obstaclePenetrationLoss_medium;
+  	}
+  else
+  	{ 
+  	  obstaclePenetrationLoss = labScenarios->m_obstaclePenetrationLoss_high;
+  	}
+  labScenarios->SetPenetrationLossMode (obstaclePenetrationLoss);
+
+  std::vector<Vector> apPosVec; // record APs' positions
+  
+  
+  // ---- AP deployment ---- 
+  // double rl = roomSize.x;
+  // double rw = roomSize.y;
+  if (FOFC == true) // with a given STB deployment in the living room
+  	{
+  	  apPosVec.push_back(apPos_FOFC);
+  	  // apPosVec.push_back(Vector (3.5,4.8, 1.5 + apDimension.z*0.5));
+  	}
+  else // LoS-optimal deployment
+  	{
+      apPosVec = labScenarios->AllocateOptAP(roomSize, i);
+  	}
+
+  x = apPosVec.at(ii - 1).x;
+  y = apPosVec.at(ii - 1).y;
+  z = apPosVec.at(ii - 1).z;
+
+
+  // start to record cpu running time
+  // clock_t startRunTime, endRunTime;
+  // double totaltime;
+  // startRunTime=clock();
+
+   /**** Set up Channel ****/
+  DmgWifiChannelHelper wifiChannelHelper;
+  /* Simple propagation delay model */
+  wifiChannelHelper.SetPropagationDelay ("ns3::ConstantSpeedPropagationDelayModel");
+  // if ((TGad_channel == true) && (SV_channel == false))
+  	// {
+  	   /*log-distance based model with 60GHz (802.11ad/ay) wavelength */
+	   // wifiChannelHelper.AddPropagationLoss ("ns3::LogDistancePropagationLossModel", "ReferenceLoss", DoubleValue (0.0),
+	                                                                                //  "Exponent", DoubleValue (2.23),
+	                                                                                //  "ReferenceDistance", DoubleValue (3.97887e-4));
+  	// }
+  // else
+  	// {
+       /* Friis model with standard-specific wavelength */
+       wifiChannelHelper.AddPropagationLoss ("ns3::FriisPropagationLossModel", "Frequency", DoubleValue (60.48e9));
+  	// }
+
+  Ptr<DmgWifiChannel> wifiChannel = wifiChannelHelper.Create ();
+
+  /**** Setup physical layer ****/
+  DmgWifiPhyHelper wifiPhy = DmgWifiPhyHelper::Default ();
+  /* Nodes will be added to the channel we set up earlier */
+  wifiPhy.SetChannel (wifiChannel);
+  /* Nodes will be added to the channel we set up earlier */
+  // wifiPhy.SetChannel (wifiChannel.Create ());
+  /* All nodes transmit at 10 dBm == 10 mW, no adaptation */
+  wifiPhy.Set ("TxPowerStart", DoubleValue (10));
+  wifiPhy.Set ("TxPowerEnd", DoubleValue (10));
+  wifiPhy.Set ("TxPowerLevels", UintegerValue (1));
+  /* Set operating channel */
+  wifiPhy.Set ("ChannelNumber", UintegerValue (2));
+  /* Sensitivity model includes implementation loss and noise figure */
+  wifiPhy.Set ("RxNoiseFigure", DoubleValue (10));
+  /* Set the phy layer error model */
+  wifiPhy.SetErrorRateModel ("ns3::SensitivityModel60GHz");
+
+  /* Set default algorithm for all nodes to be constant rate */
+  wifi.SetRemoteStationManager ("ns3::ConstantRateWifiManager", "ControlMode", StringValue (phyMode),
+                                                                "DataMode", StringValue (phyMode));
+  
+  /* Make two nodes and set them up with the PHY and the MAC */
+	NodeContainer rxWifiNode;
+	rxWifiNode.Create (clientNo);
+	NodeContainer txWifiNode;
+	txWifiNode.Create (1);
+  
+	/* Add a DMG upper mac */
+	DmgWifiMacHelper wifiMac = DmgWifiMacHelper::Default ();
+  
+	Ssid ssid = Ssid ("Compare");
+	wifiMac.SetType ("ns3::DmgApWifiMac",
+					 "Ssid", SsidValue(ssid),
+					 "BE_MaxAmpduSize", UintegerValue (mpduAggregationSize),
+					 "BE_MaxAmsduSize", UintegerValue (msduAggregationSize),
+					 "SSSlotsPerABFT", UintegerValue (8), "SSFramesPerSlot", UintegerValue (8),
+					 "BeaconInterval", TimeValue (MicroSeconds (102400)),
+					 // "BeaconTransmissionInterval", TimeValue (MicroSeconds (600)),
+					 // "ATIPresent", BooleanValue (false)
+					 "ATIDuration", TimeValue (MicroSeconds (1000)));
+  
+	/* Set Analytical Codebook for the DMG Devices */
+	wifi.SetCodebook ("ns3::CodebookAnalytical",
+					  "CodebookType", EnumValue (SIMPLE_CODEBOOK),
+					  "Antennas", UintegerValue (1),
+					  "Sectors", UintegerValue (8));
+  
+	NetDeviceContainer txDevice;
+	txDevice = wifi.Install (wifiPhy, wifiMac, txWifiNode.Get (0));
+  
+	wifiMac.SetType ("ns3::DmgStaWifiMac",
+					 "Ssid", SsidValue (ssid), "ActiveProbing", BooleanValue (false),
+					 "BE_MaxAmpduSize", UintegerValue (mpduAggregationSize),
+					 "BE_MaxAmsduSize", UintegerValue (msduAggregationSize));
+  
+	NetDeviceContainer rxDevice;
+	rxDevice = wifi.Install (wifiPhy, wifiMac, rxWifiNode);
+  
+  
   // define the communication entity ID
   std::vector<uint16_t> commEntity;
   Vector txdeviceDimension;
@@ -319,159 +478,9 @@ main(int argc, char *argv[])
 
 	  obsNumber = obsNumber + 1;
   	}
-  
 
-  // set human obstacle number
-  uint16_t obsNumber_human = 0;
-  if (humanBlock == true)
-  	{
-      obsNumber_human = human_obs;
-  	}
-
-
-  // scale parameter due to shell script without float value
-  // platformSize = platformSize*0.1;
-  depSD = depSD*0.1;
-
-  /* Global params: no fragmentation, no RTS/CTS, fixed rate for all packets */
-  Config::SetDefault ("ns3::WifiRemoteStationManager::FragmentationThreshold", StringValue ("999999"));
-  Config::SetDefault ("ns3::WifiRemoteStationManager::RtsCtsThreshold", StringValue ("999999"));
-
-  /**** WifiHelper is a meta-helper: it helps creates helpers ****/
-  DmgWifiHelper wifi;
-  wifi.SetStandard (WIFI_PHY_STANDARD_80211ad); // set up the standard
-
-  /* Turn on logging */
-  if (verbose)
-    {
-      wifi.EnableLogComponents ();
-      LogComponentEnable ("CompareAccessSchemes", LOG_LEVEL_ALL);
-    }
-
-  // NS_LOG_INFO("Logging" << verbose);
-  
-  /**** Set up Channel ****/
-  DmgWifiChannelHelper wifiChannelHelper;
-  /* Simple propagation delay model */
-  wifiChannelHelper.SetPropagationDelay ("ns3::ConstantSpeedPropagationDelayModel");
-  // if ((TGad_channel == true) && (SV_channel == false))
-  	// {
-  	   /*log-distance based model with 60GHz (802.11ad/ay) wavelength */
-	   // wifiChannelHelper.AddPropagationLoss ("ns3::LogDistancePropagationLossModel", "ReferenceLoss", DoubleValue (0.0),
-	                                                                                //  "Exponent", DoubleValue (2.23),
-	                                                                                //  "ReferenceDistance", DoubleValue (3.97887e-4));
-  	// }
-  // else
-  	// {
-       /* Friis model with standard-specific wavelength */
-       wifiChannelHelper.AddPropagationLoss ("ns3::FriisPropagationLossModel", "Frequency", DoubleValue (60.48e9));
-  	// }
-
-  Ptr<DmgWifiChannel> wifiChannel = wifiChannelHelper.Create ();
-
-  /**** Setup physical layer ****/
-  DmgWifiPhyHelper wifiPhy = DmgWifiPhyHelper::Default ();
-  /* Nodes will be added to the channel we set up earlier */
-  wifiPhy.SetChannel (wifiChannel);
-  /* Nodes will be added to the channel we set up earlier */
-  // wifiPhy.SetChannel (wifiChannel.Create ());
-  /* All nodes transmit at 10 dBm == 10 mW, no adaptation */
-  wifiPhy.Set ("TxPowerStart", DoubleValue (10));
-  wifiPhy.Set ("TxPowerEnd", DoubleValue (10));
-  wifiPhy.Set ("TxPowerLevels", UintegerValue (1));
-  /* Set operating channel */
-  wifiPhy.Set ("ChannelNumber", UintegerValue (2));
-  /* Sensitivity model includes implementation loss and noise figure */
-  wifiPhy.Set ("RxNoiseFigure", DoubleValue (10));
-  /* Set the phy layer error model */
-  wifiPhy.SetErrorRateModel ("ns3::SensitivityModel60GHz");
-
-  /* Set default algorithm for all nodes to be constant rate */
-  wifi.SetRemoteStationManager ("ns3::ConstantRateWifiManager", "ControlMode", StringValue (phyMode),
-                                                                "DataMode", StringValue (phyMode));
-					
-  /* Make two nodes and set them up with the PHY and the MAC */
-  NodeContainer rxWifiNode;
-  rxWifiNode.Create (clientNo);
-  NodeContainer txWifiNode;
-  txWifiNode.Create (1);
-
-  /* Add a DMG upper mac */
-  DmgWifiMacHelper wifiMac = DmgWifiMacHelper::Default ();
-
-  Ssid ssid = Ssid ("Compare");
-  wifiMac.SetType ("ns3::DmgApWifiMac",
-                   "Ssid", SsidValue(ssid),
-                   "BE_MaxAmpduSize", UintegerValue (mpduAggregationSize),
-                   "BE_MaxAmsduSize", UintegerValue (msduAggregationSize),
-                   "SSSlotsPerABFT", UintegerValue (8), "SSFramesPerSlot", UintegerValue (8),
-                   "BeaconInterval", TimeValue (MicroSeconds (102400)),
-                   // "BeaconTransmissionInterval", TimeValue (MicroSeconds (600)),
-                   // "ATIPresent", BooleanValue (false)
-                   "ATIDuration", TimeValue (MicroSeconds (1000)));
-
-  /* Set Analytical Codebook for the DMG Devices */
-  wifi.SetCodebook ("ns3::CodebookAnalytical",
-                    "CodebookType", EnumValue (SIMPLE_CODEBOOK),
-                    "Antennas", UintegerValue (1),
-                    "Sectors", UintegerValue (8));
-
-  NetDeviceContainer txDevice;
-  txDevice = wifi.Install (wifiPhy, wifiMac, txWifiNode.Get (0));
-
-  wifiMac.SetType ("ns3::DmgStaWifiMac",
-                   "Ssid", SsidValue (ssid), "ActiveProbing", BooleanValue (false),
-                   "BE_MaxAmpduSize", UintegerValue (mpduAggregationSize),
-                   "BE_MaxAmsduSize", UintegerValue (msduAggregationSize));
-
-  NetDeviceContainer rxDevice;
-  rxDevice = wifi.Install (wifiPhy, wifiMac, rxWifiNode);
-
-  // Set Obstacles and track location
-  Ptr<Obstacle> labScenarios = CreateObject<Obstacle> ();
+  // allocate furniture-type and self-device obstacles
   labScenarios->SetObstacleNumber(obsNumber);
-  labScenarios->SetHumanObstacleNumber(obsNumber_human);
-
-  // labScenarios->EnableSVChannel(SV_channel);
-  labScenarios->EnableTGadChannel(TGad_channel);
-  labScenarios->SetReflectedMode(reflectorDenseMode);
-  // set penetration loss mode
-  std::vector<double> obstaclePenetrationLoss;
-  if (reflectorDenseMode == 1)
-  	{
-  	  obstaclePenetrationLoss = labScenarios->m_obstaclePenetrationLoss_low;
-  	}
-  else if (reflectorDenseMode == 2)
-  	{
-  	  obstaclePenetrationLoss = labScenarios->m_obstaclePenetrationLoss_medium;
-  	}
-  else
-  	{ 
-  	  obstaclePenetrationLoss = labScenarios->m_obstaclePenetrationLoss_high;
-  	}
-  labScenarios->SetPenetrationLossMode (obstaclePenetrationLoss);
-
-  std::vector<Vector> apPosVec; // record APs' positions
-  
-  
-  // ---- AP deployment ---- 
-  // double rl = roomSize.x;
-  // double rw = roomSize.y;
-  if (FOFC == true) // with a given STB deployment in the living room
-  	{
-  	  apPosVec.push_back(apPos_FOFC);
-  	  // apPosVec.push_back(Vector (3.5,4.8, 1.5 + apDimension.z*0.5));
-  	}
-  else // LoS-optimal deployment
-  	{
-      apPosVec = labScenarios->AllocateOptAP(roomSize, i);
-  	}
-
-  x = apPosVec.at(ii - 1).x;
-  y = apPosVec.at(ii - 1).y;
-  z = apPosVec.at(ii - 1).z;
-
-  labScenarios->SetObsConflictCheck(obsConflictCheck);
   if (FOFC == true)
   	{
   	  labScenarios->AllocateObstacle_Fixed_withHB(Box (x-apDimension.x/2, x+apDimension.x/2, y-apDimension.y/2, y+apDimension.y/2, z-apDimension.z, z+apDimension.z), roomSize, clientRS, xPos, yPos, wObs, lObs, hObs, hObs_min, dirObs);
@@ -479,22 +488,15 @@ main(int argc, char *argv[])
   else // RORC
   	{
   	  labScenarios->AllocateObstacle(Box (x-apDimension.x/2, x+apDimension.x/2, y-apDimension.y/2, y+apDimension.y/2, z-apDimension.z, z+apDimension.z), roomSize, clientRS);
-  	}
-  // labScenarios->AllocateObstacle(Box (x-apDimension.x/2, x+apDimension.x/2, y-apDimension.y/2, y+apDimension.y/2, z-apDimension.z, z+apDimension.z), roomSize, clientRS);
-  // AllocateObstacle_Fixed(Box railLocation, Vector roomSize, uint16_t clientRS, std::vector<double> xPos, std::vector<double> yPos, std::vector<double> wObs, std::vector<double> lObs, std::vector<double> hObs, std::vector<double> dirObs)
-  // labScenarios->AllocateObstacle_Fixed(Box (x-apDimension.x/2, x+apDimension.x/2, y-apDimension.y/2, y+apDimension.y/2, z-apDimension.z, z+apDimension.z), roomSize, clientRS, xPos, yPos, wObs, lObs, hObs, dirObs);  
+  	}    
 
+  // allocate human obstacles
+  labScenarios->SetObsConflictCheck(obsConflictCheck);
+  labScenarios->SetHumanObstacleNumber(obsNumber_human);
   if (humanBlock == true) // add human blockages
   	{
   	   labScenarios->AllocateObstacle_human(Box (x-apDimension.x/2, x+apDimension.x/2, y-apDimension.y/2, y+apDimension.y/2, z-apDimension.z, z+apDimension.z), roomSize, clientRS);
   	}
-
-
-  // start to record cpu running time
-  // clock_t startRunTime, endRunTime;
-  // double totaltime;
-  // startRunTime=clock();
-
 
   /* Setting mobility model */
   MobilityHelper mobility1; // tx, AP's mobility model
@@ -507,36 +509,7 @@ main(int argc, char *argv[])
   std::vector<Vector> rxPos;
   if (FOFC == true)
   	{
-        // std::vector<Vector> clientPos;
-  		std::vector<double> client_temp;
-		/*
-  		std::ifstream ifs1;
-  		ifs1.open(filename_client, ios::in);
-  		if (!ifs1) // no file exists
-		{
-			NS_LOG_INFO("no file exist!");
-			std::cerr << "no file exist! (client file)" << std::endl;
-		}
-  		// double a;
-  		if (ifs1.is_open())
-		{
-			for (; ifs1 >> a;)
-			{
-				client_temp.push_back(a);
-			}
-			ifs1.close();
-		}
-  		else
-		{
-			NS_LOG_INFO("File exists but Unable to open");
-			std::cerr << "File exists but Unable to open! (client file)" << std::endl;
-		}
-		*/
-        // client_temp = {7.0, 3.5, 1.5}; // TV position
-		
-  		// int FixedUENumber = client_temp.size()/3;
-  		// Vector thisUE = Vector (client_temp.at((clientRS - 1)*3), client_temp.at((clientRS - 1)*3 + 1), client_temp.at((clientRS - 1)*3 + 2));
-  		rxPos.push_back(STApos.at(commEntity.at(1)));
+  	  rxPos.push_back(STApos.at(commEntity.at(1)));
   	}
   else // RORC
   	{
@@ -666,8 +639,8 @@ main(int argc, char *argv[])
       	throughput += ((totalPacketsThrough * 8) / ((simulationTime-1) * 1000000.0)); //Mbit/s
       	std::cerr << ((totalPacketsThrough * 8) / ((simulationTime-1) * 1000000.0)) << " ";
 		// std::cerr << totalPacketsThrough*1.0/payloadSize << " ";
-		double distance = std::sqrt((rxPos.at(index).x - txPos.x)*(rxPos.at(index).x - txPos.x)+(rxPos.at(index).y - txPos.y)*(rxPos.at(index).y - txPos.y)+(rxPos.at(index).z - txPos.z)*(rxPos.at(index).z - txPos.z));
-		std::cerr << distance << " ";
+		// double distance = std::sqrt((rxPos.at(index).x - txPos.x)*(rxPos.at(index).x - txPos.x)+(rxPos.at(index).y - txPos.y)*(rxPos.at(index).y - txPos.y)+(rxPos.at(index).z - txPos.z)*(rxPos.at(index).z - txPos.z));
+		// std::cerr << distance << " ";
     }
 
   // endRunTime=clock();
@@ -675,6 +648,8 @@ main(int argc, char *argv[])
   // std::cerr << totaltime << " ";
   
   std::cerr << std::endl;
+  }
+  
   return 0;
 }
 
