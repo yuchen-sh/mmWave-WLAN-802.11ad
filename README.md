@@ -1,5 +1,5 @@
 ## Introduction:
-This is a repository for the development of the 60 GHz mmWave wireless LAN (IEEE 802.11ad/ay) in network simulator ns-3. This repository is based on [Wigig Tools] (https://github.com/wigig-tools/wigig-module).
+This is a repository for the development of the 60 GHz mmWave wireless LAN (IEEE 802.11ad/ay) in network simulator ns-3. This repository is based on [Wigig Tools](https://github.com/wigig-tools/wigig-module).
 
 ## Features:
 In addition to IEEE 802.11ad/ay features as in original Wigig module, this version supports the following new features:
