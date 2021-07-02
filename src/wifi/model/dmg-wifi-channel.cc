@@ -710,6 +710,7 @@ DmgWifiChannel::Send (Ptr<DmgWifiPhy> sender, Ptr<const WifiPpdu> ppdu, double t
                                      min(14.0, gtx) +                            // Sender's antenna gain.
                                      min(14.0, grx) +                            // receiver's antenna gain
                                      LoSSign*(-1.0)*10.0;                        // 10 dB additional loss for NLoS case
+                        // rxPowerDbm = 10.3 - 81.5212;
 						// std::cerr << "path loss is: " << m_loss->CalcRxPower (txPowerDbm, senderMobility, receiverMobility) << std::endl;
 						// std::cerr << "rxPowerDbm is: " << rxPowerDbm << std::endl; 
 						// NS_LOG_DEBUG ("rxPowerDbm" << rxPowerDbm << " fading " << m_scenario->GetFadingInfo(sender_pos, receiverMobility->GetPosition ()).second);

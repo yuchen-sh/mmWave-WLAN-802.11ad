@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2021 GNAN
- * Author: Yuchen */
+ * Copyright (c) 2021
+ * Author: Yuchen Liu*/
 
 #include "ns3/applications-module.h"
 #include "ns3/core-module.h"
@@ -22,12 +22,23 @@
 
 /**
  * Simulation Objective:
- * This script is used to evaluate the performance of living room scenario defined in TGad Functional Evaluation document 
+ * This script is used to evaluate the performance of living room scenario defined in TGad Evaluation document 
 
- * To evaluate CSMA/CA channel access scheme: scheme=1, To evaluate SP channel access scheme: scheme=0
+ * Network Topology:
+ * The scenario consists of 1 set-top box (STB) and 1 TV, and traffic model is uncompressed videos.
+ *
+ *
+ *
+ * Running Simulation:
+ * ./waf --run "TGad_performance_evaluation_living_room --humanBlock=false"  (LoS channel)
+ * ./waf --run "TGad_performance_evaluation_living_room --humanBlock=true"  (NLoS channel)
+ *
+ * Simulation Output:
+ * 1. LoS/NLoS status (LoS -- 0; NLoS -- 1)
+ * 2. Throughput (Mbps)
  */
 
-NS_LOG_COMPONENT_DEFINE ("CompareAccessSchemes");
+NS_LOG_COMPONENT_DEFINE ("TGadEvalLivingRoom");
 
 
 
@@ -42,16 +53,11 @@ uint32_t allocationType = 0;               /* The type of channel access scheme 
 int
 main(int argc, char *argv[])
 {
-  LogComponentEnable ("CompareAccessSchemes", LOG_LEVEL_ALL);
-  //LogComponentEnable ("MacLow", LOG_LEVEL_ALL);
-  //LogComponentEnable ("EdcaTxopN", LOG_LEVEL_ALL);
-  //LogComponentEnable ("Obstacle", LOG_LEVEL_ALL);
-  // LogComponentEnable ("YansWifiChannel", LOG_LEVEL_ALL);
-  //LogComponentEnable ("TruncatedNormalDistribution", LOG_LEVEL_ALL);
-  // LogComponentEnable ("DmgApWifiMac", LOG_LEVEL_ALL);
+  LogComponentEnable ("TGadEvalLivingRoom", LOG_LEVEL_ALL);
 
   uint32_t payloadSize = 1472;                  /* Application payload size in bytes. */
   string dataRate = "4500Mbps";                 /* Application data rate. */
+  string uncompVideoRate = "3000Mbps";          /* 1080p, 1920*1080 */
   uint32_t msduAggregationSize = 8000; // 7935; /* The maximum aggregation size for A-MSDU in Bytes. */
   uint32_t mpduAggregationSize = 262143;        /* The maximum aggregation size for A-MSPU in Bytes. */
   uint32_t queueSize = 1000;                    /* Wifi MAC Queue Size. */
@@ -66,56 +72,74 @@ main(int argc, char *argv[])
   uint16_t distRS = 1;
   uint16_t i = 1; // number of AP
   uint16_t ii = 1; // iith AP
-  // uint16_t shapeCategary = 0;
-  // uint16_t centerLocation = 1;
-  // double platformSize = 30;
   Vector roomSize = Vector (7.0, 7.0, 3.0);
-  // Vector trackSize = Vector(0, 0.065, 0.047); // x dimension is a parameter to be changed
-  // double moveStep = 0.1;
   Vector apDimension = Vector (0.23, 0.23, 0.12);
-  Vector apPos_FOFC = Vector (4.3, 6.5, 1.5 + apDimension.z*0.5); // Vector (3.5, 6.5, 1.5 + apDimension.z*0.5); // Vector (0.1, 6.9, 2.7 + apDimension.z*0.5);
+  Vector apPos_FOFC = Vector (5.3, 6.35, 1.5 + apDimension.z*0.5); // Vector (3.5, 6.5, 1.5 + apDimension.z*0.5); // Vector (0.1, 6.9, 2.7 + apDimension.z*0.5);
   double depSD = 1;
   uint32_t clientNo = 1; // number of sta, must fixed at 1 for this script
-  // bool hermesFlag = 0;  // 0--Multiple static AP, 1--mobile AP
-  uint16_t obsNumber = 20; // 22, 43, furniture-type obstacles
-  double human_obs_ratio = 0; // if no human blockage, set as 0 // 0.5
-  bool SV_channel = true; // enable SV channel
-  bool TGad_channel = false; // enable TGad_channel
-  int reflectorDenseMode = 1; // 1/2/3 -> lower/medium/higher density of highly-reflective objects in the room
+  uint16_t obsNumber = 20; // 22, 43, obstacles
+  double human_obs_ratio = 0; // if no human blockage, set as 0. NOTE: only used for RORC mode
+  bool TGad_channel = true; // enable TGad_channel
+  int reflectorDenseMode = 2; // 1/2/3 -> lower/medium/higher density of highly-reflective objects in the room
   uint16_t clientDistType = 0; // 0-possion, 1-trucated-normal, 2-OD-Truncated Normal, 3-OD
   bool mobilityUE = 0; // 0--static, 1--mobile (random walk)
   bool obsConflictCheck = false; // true--checking obstacle conflicts when allocating obstacles
   bool FOFC = true; // true -- allocate fixed obstacles and clients in the scenario; false: randomly generate obstacles and clients
+  bool humanBlock = false; // true -- enable a human obstacle that blocks the link btw STB and TV
+
+
+
+  /* Command line argument parser setup. */
+  CommandLine cmd;
+  cmd.AddValue ("payloadSize", "Application payload size in bytes", payloadSize);
+  cmd.AddValue ("dataRate", "Application data rate", dataRate);
+  cmd.AddValue ("msduAggregation", "The maximum aggregation size for A-MSDU in Bytes", msduAggregationSize);
+  cmd.AddValue ("mpduAggregation", "The maximum aggregation size for A-MPDU in Bytes", mpduAggregationSize);
+  cmd.AddValue ("queueSize", "The maximum size of the Wifi MAC Queue", queueSize);
+  cmd.AddValue ("scheme", "The access scheme used for channel access (0=SP,1=CBAP)", allocationType);
+  cmd.AddValue ("phyMode", "802.11ad PHY Mode", phyMode);
+  cmd.AddValue ("verbose", "Turn on all WifiNetDevice log components", verbose);
+  cmd.AddValue ("simulationTime", "Simulation time in seconds", simulationTime);
+  cmd.AddValue ("pcap", "Enable PCAP Tracing", pcapTracing);
+  cmd.AddValue ("humanBlock", "Enable human obstacle", humanBlock);
+  cmd.AddValue ("x", "ap x", x);
+  cmd.AddValue ("y", "ap y", y);
+  cmd.AddValue ("i", "simulation iteration", i);
+  cmd.AddValue ("ii", "simulation iteration ii", ii);
+  cmd.AddValue ("z", "ap z", z);
+  cmd.AddValue ("clientRS", "random seed for client", clientRS);
+  cmd.AddValue ("clientDistType", "distribution type for client", clientDistType);
+  cmd.AddValue ("distRS", "random seed for truncated normal distribution", distRS);
+  cmd.AddValue ("depSD", "random seed for dependent distribution", depSD);
+  cmd.AddValue ("clientNo", "Number of client", clientNo);
+  cmd.AddValue ("obsNumber", "obstacle Number", obsNumber);  
+  cmd.Parse (argc, argv);
+
 
   std::vector<double> xPos, yPos, wObs, lObs, hObs, dirObs, hObs_min;
-  double a;
-  string filename_obs = "obs_info/case_fixed_obs_living_room.txt";
-  string filename_client = "UE_info/case_UE_pos_living_room.txt";
   std::vector<double> obs_temp;
   if (FOFC == true)
   	{
   // Fixed obstacle setting
-  // read the obstacle info from the txt
-  std::ifstream ifs;
-  ifs.open(filename_obs, ios::in);
-  if (!ifs) // no file exists
-	{
-		NS_LOG_INFO("no file exist!");
-		std::cerr << "no file exist! (obs file)" << std::endl;
-	}
-  if (ifs.is_open())
-	{
-		for (; ifs >> a;)
-		{
-			obs_temp.push_back(a);
-		}
-		ifs.close();
-	}
-  else
-	{
-		NS_LOG_INFO("File exists but Unable to open");
-		std::cerr << "File exists but Unable to open! (obs file)" << std::endl;
-	}
+  obs_temp = {2.0, 0.7, 0.7, 2.24, 2.0, 0.7, 0.7, 2.24, 1.5, 0.05, 0.05, 0.05, 0.05, 0.6, 0.7, 0.7, 0.84, 1.6, 
+              0.7, 0.12, 0.12, 0.14, 0.7, 0.12, 0.12, 0.14, 0.6, 0.05, 0.05, 0.05, 0.05, 0.6, 0.12, 0.12, 0.14, 0.5,
+              0.8, 1.2, 1.2, 1.26, 0.8, 1.2, 1.2, 1.26, 1.1, 1.03, 1.03, 1.03, 1.03, 0.8, 1.2, 1.2, 1.26, 1.5, 
+              90, 0, 0, 90, 0, 90, 90, 0, 90, 0, 0, 0, 0, 45, 135, 135, 45, 0,
+              2.6, 2.6, 2.6, 2.18, 4.3, 3.24, 5.36, 4.3, 4.3, 4.1, 4.5, 4.1, 4.5, 5.36, 5, 5.72, 5.36, 4.5,
+              3.5, 2.44, 4.56, 3.5, 1.65, 1.65, 1.65, 1.23, 3.5, 4.15, 4.15, 2.85, 2.85, 5.1, 5.1, 5.1, 5.47, 6.25,
+              0, 0, 0, 0, 0, 0, 0, 0, 1.03, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+
+  if (humanBlock == true)// add one human obstacle
+  	{
+      obs_temp = {2.0, 0.7, 0.7, 2.24, 2.0, 0.7, 0.7, 2.24, 1.5, 0.05, 0.05, 0.05, 0.05, 0.6, 0.7, 0.7, 0.84, 1.6, 0.5,
+              0.7, 0.12, 0.12, 0.14, 0.7, 0.12, 0.12, 0.14, 0.6, 0.05, 0.05, 0.05, 0.05, 0.6, 0.12, 0.12, 0.14, 0.5, 0.2,
+              0.8, 1.2, 1.2, 1.26, 0.8, 1.2, 1.2, 1.26, 1.1, 1.03, 1.03, 1.03, 1.03, 0.8, 1.2, 1.2, 1.26, 1.5, 1.75,
+              90, 0, 0, 90, 0, 90, 90, 0, 90, 0, 0, 0, 0, 45, 135, 135, 45, 0, 45,
+              2.6, 2.6, 2.6, 2.18, 4.3, 3.24, 5.36, 4.3, 4.3, 4.1, 4.5, 4.1, 4.5, 5.36, 5, 5.72, 5.36, 4.5, 6.2,
+              3.5, 2.44, 4.56, 3.5, 1.65, 1.65, 1.65, 1.23, 3.5, 4.15, 4.15, 2.85, 2.85, 5.1, 5.1, 5.1, 5.47, 6.6, 5.05,
+              0, 0, 0, 0, 0, 0, 0, 0, 1.03, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+  	}
+  
   obsNumber = obs_temp.size()/7;
   for (uint16_t io = 0; io < obs_temp.size(); ++io)
   	{
@@ -152,41 +176,9 @@ main(int argc, char *argv[])
   	}
 
   
-  /* Command line argument parser setup. */
-  CommandLine cmd;
-  cmd.AddValue ("payloadSize", "Application payload size in bytes", payloadSize);
-  cmd.AddValue ("dataRate", "Application data rate", dataRate);
-  cmd.AddValue ("msduAggregation", "The maximum aggregation size for A-MSDU in Bytes", msduAggregationSize);
-  cmd.AddValue ("mpduAggregation", "The maximum aggregation size for A-MPDU in Bytes", mpduAggregationSize);
-  cmd.AddValue ("queueSize", "The maximum size of the Wifi MAC Queue", queueSize);
-  cmd.AddValue ("scheme", "The access scheme used for channel access (0=SP,1=CBAP)", allocationType);
-  cmd.AddValue ("phyMode", "802.11ad PHY Mode", phyMode);
-  cmd.AddValue ("verbose", "Turn on all WifiNetDevice log components", verbose);
-  cmd.AddValue ("simulationTime", "Simulation time in seconds", simulationTime);
-  cmd.AddValue ("pcap", "Enable PCAP Tracing", pcapTracing);
-  cmd.AddValue ("x", "ap x", x);
-  cmd.AddValue ("y", "ap y", y);
-  cmd.AddValue ("i", "simulation iteration", i);
-  cmd.AddValue ("ii", "simulation iteration ii", ii);
-  cmd.AddValue ("z", "ap z", z);
-  // cmd.AddValue ("centerLocation", "center Location Type", centerLocation);
-  // cmd.AddValue ("platformSize", "platform Size", platformSize); 
-  cmd.AddValue ("clientRS", "random seed for client", clientRS);
-  cmd.AddValue ("clientDistType", "distribution type for client", clientDistType);
-  cmd.AddValue ("distRS", "random seed for truncated normal distribution", distRS);
-  cmd.AddValue ("depSD", "random seed for dependent distribution", depSD);
-  cmd.AddValue ("clientNo", "Number of client", clientNo);
-  // cmd.AddValue ("hermesFlag", "0 means static AP scenario, 1 means hermes scenario", hermesFlag);
-  // cmd.AddValue ("shapeCategary", "shape Categary", shapeCategary);
-  cmd.AddValue ("obsNumber", "obstacle Number", obsNumber);  
-  cmd.Parse (argc, argv);
 
   // set human obstacle number
   uint16_t obsNumber_human = (uint16_t)(floor(obsNumber*1.0*human_obs_ratio));
-  // uint16_t obsNumber_human = (uint16_t)(floor(43*1.0*human_obs_ratio));
-
-  // scale parameter due to shell script without float value
-  // platformSize = platformSize*0.1;
   depSD = depSD*0.1;
 
   /* Global params: no fragmentation, no RTS/CTS, fixed rate for all packets */
@@ -288,7 +280,7 @@ main(int argc, char *argv[])
   labScenarios->SetObstacleNumber(obsNumber);
   labScenarios->SetHumanObstacleNumber(obsNumber_human);
 
-  labScenarios->EnableSVChannel(SV_channel);
+  // labScenarios->EnableSVChannel(SV_channel);
   labScenarios->EnableTGadChannel(TGad_channel);
   labScenarios->SetReflectedMode(reflectorDenseMode);
   // set penetration loss mode
@@ -310,13 +302,10 @@ main(int argc, char *argv[])
   std::vector<Vector> apPosVec; // record APs' positions
   
   
-  // ---- AP deployment ----
-  // double rl = roomSize.x;
-  // double rw = roomSize.y;
-  if (FOFC == true) // with a given AP deployment in the living room
+  // ---- STB deployment ---- 
+  if (FOFC == true) // with a given STB deployment in the living room
   	{
   	  apPosVec.push_back(apPos_FOFC);
-  	  // apPosVec.push_back(Vector (3.5,4.8, 1.5 + apDimension.z*0.5));
   	}
   else // LoS-optimal deployment
   	{
@@ -335,16 +324,6 @@ main(int argc, char *argv[])
   	{
   	  labScenarios->AllocateObstacle(Box (x-apDimension.x/2, x+apDimension.x/2, y-apDimension.y/2, y+apDimension.y/2, z-apDimension.z, z+apDimension.z), roomSize, clientRS);
   	}
-  // labScenarios->AllocateObstacle(Box (x-apDimension.x/2, x+apDimension.x/2, y-apDimension.y/2, y+apDimension.y/2, z-apDimension.z, z+apDimension.z), roomSize, clientRS);
-  // AllocateObstacle_Fixed(Box railLocation, Vector roomSize, uint16_t clientRS, std::vector<double> xPos, std::vector<double> yPos, std::vector<double> wObs, std::vector<double> lObs, std::vector<double> hObs, std::vector<double> dirObs)
-  // labScenarios->AllocateObstacle_Fixed(Box (x-apDimension.x/2, x+apDimension.x/2, y-apDimension.y/2, y+apDimension.y/2, z-apDimension.z, z+apDimension.z), roomSize, clientRS, xPos, yPos, wObs, lObs, hObs, dirObs);  
-
-
-
-  // start to record cpu running time
-  // clock_t startRunTime, endRunTime;
-  // double totaltime;
-  // startRunTime=clock();
 
 
   /* Setting mobility model */
@@ -354,34 +333,13 @@ main(int argc, char *argv[])
   Vector apPos = Vector (x, y, z);
 
   // allocate fixed client locations
-  // std::vector<Vector> clientPos = labScenarios->IdentifyCLientLocation (clientRS, distRS, depSD, clientNo, clientDistType);
   std::vector<Vector> clientPos;
   if (FOFC == true)
   	{
         // std::vector<Vector> clientPos;
   		std::vector<double> client_temp;
-  		std::ifstream ifs1;
-  		ifs1.open(filename_client, ios::in);
-  		if (!ifs1) // no file exists
-		{
-			NS_LOG_INFO("no file exist!");
-			std::cerr << "no file exist! (client file)" << std::endl;
-		}
-  		// double a;
-  		if (ifs1.is_open())
-		{
-			for (; ifs1 >> a;)
-			{
-				client_temp.push_back(a);
-			}
-			ifs1.close();
-		}
-  		else
-		{
-			NS_LOG_INFO("File exists but Unable to open");
-			std::cerr << "File exists but Unable to open! (client file)" << std::endl;
-		}
-  		// int FixedUENumber = client_temp.size()/3;
+        client_temp = {7.0, 3.5, 1.5}; // TV position
+
   		Vector thisUE = Vector (client_temp.at((clientRS - 1)*3), client_temp.at((clientRS - 1)*3 + 1), client_temp.at((clientRS - 1)*3 + 2));
   		clientPos.push_back(thisUE); // only for one-user case
   	}
@@ -399,7 +357,6 @@ main(int argc, char *argv[])
     positionAlloc->Add (clientPos.at(clientId));  /* DMG STA */
   labScenarios->LoSAnalysis (apPos, clientPos, apDimension);
   wifiChannel->SetScenarioModel(labScenarios);
-  wifiChannel->SetSVChannelEnabler(SV_channel);
   wifiChannel->SetTGadChannelEnabler(TGad_channel);
   wifiChannel->SetSVChannelReflectedMode(reflectorDenseMode);
   labScenarios->SetObsConflictCheck(obsConflictCheck);
@@ -422,15 +379,6 @@ main(int argc, char *argv[])
   	  	  losFlag_mul.push_back(labScenarios->LoSAnalysis_MultiAP (apPosVec[i_ap], clientPos, apDimension));
   	  	}
   	}
-  
-  // do interference analysis, only for multi-user, multi-AP cases
-  std::vector<std::vector<double> > InterfVec_analy;
-  if ((clientNo > 1)&&(i > 1))
-  	{
-  	  InterfVec_analy = labScenarios->InterferenceAnalysis (apPosVec, clientPos, i, clientNo, losFlag_mul, 10.0);
-  	}
-  
-  // endRunTime=clock();
 
   // AP's mobility pattern settings
   mobility1.SetPositionAllocator (positionAlloc);
@@ -486,13 +434,12 @@ main(int argc, char *argv[])
       src.SetAttribute ("PacketSize", UintegerValue (payloadSize));
       src.SetAttribute ("OnTime", StringValue ("ns3::ConstantRandomVariable[Constant=1e6]"));
       src.SetAttribute ("OffTime", StringValue ("ns3::ConstantRandomVariable[Constant=0]"));
-      src.SetAttribute ("DataRate", DataRateValue (DataRate (dataRate)));
+      src.SetAttribute ("DataRate", DataRateValue (DataRate (uncompVideoRate)));
       sourceApplications.Add (src.Install (apWifiNode.Get (0)));
       PacketSinkHelper packetSinkHelper ("ns3::UdpSocketFactory", sinkSocket);
       sinkApplications.Add (packetSinkHelper.Install (staWifiNode.Get (index)));
    }
 
-  // endRunTime=clock();
   
   sinkApplications.Start (Seconds (0.0));
   sinkApplications.Stop (Seconds (simulationTime));
@@ -507,58 +454,19 @@ main(int argc, char *argv[])
       wifiPhy.EnablePcap ("Traces/Station", staDevice, false);
     }
 
-  /*apWifiNetDevice = StaticCast<WifiNetDevice> (apDevice.Get (0));
-  staWifiNetDevice = StaticCast<WifiNetDevice> (staDevice.Get (0));
-  apWifiMac = StaticCast<DmgApWifiMac> (apWifiNetDevice->GetMac ());
-  staWifiMac = StaticCast<DmgStaWifiMac> (staWifiNetDevice->GetMac ());
-  staWifiMac->TraceConnectWithoutContext ("Assoc", MakeBoundCallback (&StationAssoicated, staWifiMac));*/
 
   Simulator::Stop (Seconds (simulationTime + 1));
   Simulator::Run ();
   Simulator::Destroy ();
 
   /* Print Results Summary */
-  // std::cerr << i << " " << centerLocation << " "  << clientRS << " "  << apPos << " ";
-  // std::copy(clientPos.begin(), clientPos.end(), std::ostream_iterator<Vector>(std::cerr, " "));
   std::copy(losFlag.begin(), losFlag.end(), std::ostream_iterator<bool>(std::cerr, " "));
-  // consider multi-user interference only for multi-user, multi-AP cases
-  if ((clientNo > 1)&&(i > 1))
-  	{
-  	  for (unsigned index = 0; index < sinkApplications.GetN (); ++index)
-    	{
-      	    int64_t totalPacketsThrough = StaticCast<PacketSink> (sinkApplications.Get (index))->GetTotalRx ();
-			// original thrp without considering interference
-			std::cerr << ((totalPacketsThrough * 8) / ((simulationTime-1) * 1000000.0)) << " ";
-			if (InterfVec_analy[index][i-1] < 0.0)
-				{
-				  InterfVec_analy[index][i-1] = 0.0;
-				}
-			totalPacketsThrough -= (int64_t)(InterfVec_analy[index][i-1]*(simulationTime-1));
-			if (totalPacketsThrough <= 0)
-				{
-				  totalPacketsThrough = 0;
-				}			
-			throughput += ((totalPacketsThrough * 8) / ((simulationTime-1) * 1000000.0)); //Mbit/s
-			// real thrp
-      		std::cerr << ((totalPacketsThrough * 8) / ((simulationTime-1) * 1000000.0)) << " ";
-    	}
-  	}
-  else
-  	{
-  	  for (unsigned index = 0; index < sinkApplications.GetN (); ++index)
-    	{
-      	    uint64_t totalPacketsThrough = StaticCast<PacketSink> (sinkApplications.Get (index))->GetTotalRx ();
-      		throughput += ((totalPacketsThrough * 8) / ((simulationTime-1) * 1000000.0)); //Mbit/s
-      		std::cerr << ((totalPacketsThrough * 8) / ((simulationTime-1) * 1000000.0)) << " ";
-			// std::cerr << totalPacketsThrough*1.0/payloadSize << " ";
-			// double distance = std::sqrt((clientPos.at(index).x - apPos.x)*(clientPos.at(index).x - apPos.x)+(clientPos.at(index).y - apPos.y)*(clientPos.at(index).y - apPos.y)+(clientPos.at(index).z - apPos.z)*(clientPos.at(index).z - apPos.z));
-			// std::cerr << distance << " ";
-    	}
-  	}
-
-  // endRunTime=clock();
-  // totaltime=(double)(endRunTime-startRunTime)/CLOCKS_PER_SEC;
-  // std::cerr << totaltime << " ";
+  for (unsigned index = 0; index < sinkApplications.GetN (); ++index)
+    {
+      	uint64_t totalPacketsThrough = StaticCast<PacketSink> (sinkApplications.Get (index))->GetTotalRx ();
+      	throughput += ((totalPacketsThrough * 8) / ((simulationTime-1) * 1000000.0)); //Mbit/s
+      	std::cerr << ((totalPacketsThrough * 8) / ((simulationTime-1) * 1000000.0)) << " ";
+    }
   
   std::cerr << std::endl;
   return 0;
