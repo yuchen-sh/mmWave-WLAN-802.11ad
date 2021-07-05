@@ -4,7 +4,7 @@
 
 Desciption: This script is used to evaluate the network performance in a living room scenario as defined in TGad Functional Evaluation document. The scenario consists of several furniture items, 1 DMG AP and six DMG STAs, where three of them are LoS to AP, and others are NLoS to AP. 
 
-<img id="img1" src="figures/func_test.png" width="500" height="260" align="middle">
+<img id="img1" src="figures/func_test.png" width="500" height="280" align="middle">
 
 ### 2. "TGad_performance_evaluation_living_room.cc"
 
