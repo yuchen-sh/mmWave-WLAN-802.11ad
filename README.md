@@ -8,7 +8,7 @@ In addition to IEEE 802.11ad/ay features as in original Wigig module, this versi
 1. Accurate Line-of-Sight determination function.
 1. Different mmWave-specific channel models.
 1. Support for multiple access point and mobile access point configurations.
-1. Add many TGad evaluation examples (under development and will update).
+1. Add TGad evaluation examples (under development and continue to update).
 
 
 
@@ -35,3 +35,7 @@ Before start using this mmWave WLAN module, please keep the following in mind:
 	
 ## Contact Info:
 yuchen.liu.sn at gmail.com
+
+## Acknowledgement
+1. IMDEA Networks Institute, Madrid, Spain
+1. Georgia Institute of Technology, Atlanta, USA
