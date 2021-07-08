@@ -32,10 +32,6 @@ Before start using this mmWave WLAN module, please keep the following in mind:
 1. Understand the existing Wifi Model in ns-3 which implements WLAN IEEE 802.11a/b/g/n/ac/ax.
 
 
-	
-% ## Contact Info:
-% yuchen.liu.sn at gmail.com
-
 ## Acknowledgement
 1. IMDEA Networks Institute, Madrid, Spain
 1. Georgia Institute of Technology, Atlanta, USA
