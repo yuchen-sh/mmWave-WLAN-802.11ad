@@ -33,8 +33,8 @@ Before start using this mmWave WLAN module, please keep the following in mind:
 
 
 	
-## Contact Info:
-yuchen.liu.sn at gmail.com
+% ## Contact Info:
+% yuchen.liu.sn at gmail.com
 
 ## Acknowledgement
 1. IMDEA Networks Institute, Madrid, Spain
