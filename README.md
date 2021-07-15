@@ -4,7 +4,7 @@ This is a repository for the development of the 60 GHz mmWave wireless LAN (IEEE
 ## Features:
 In addition to IEEE 802.11ad/ay features as in original Wigig module, this version supports the following new features:
 
-1. Cuboid-based obstacle model (inlcuding both furniture-type obstacles and humam obstacles).
+1. Cuboid-based obstacle model (including both furniture-type obstacles and humam obstacles).
 1. Accurate Line-of-Sight determination function.
 1. Different mmWave-specific channel models.
 1. Support for multiple access point and mobile access point configurations.
