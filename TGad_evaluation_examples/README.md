@@ -12,3 +12,9 @@ Description: This script is used to evaluate the network performance of a living
 
 <img id="img1" src="figures/eva_living_room.png" width="500" height="280" align="middle">
 
+### 3. "TGad_performance_evaluation_conference_room.cc"
+
+Description: This script is used to evaluate the performance of office conference room scenario defined in TGad Evaluation document. The scenario consists of several furniture items, 1 60 GHz AP (STA 0) and 8 STAs. Traffic model used among them includes lightly compressed video, local file transfer, and web browsing.
+
+<img id="img1" src="figures/eva_living_room.png" width="500" height="280" align="middle">
+
