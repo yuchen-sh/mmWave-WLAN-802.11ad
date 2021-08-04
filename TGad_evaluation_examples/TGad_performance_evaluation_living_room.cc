@@ -157,7 +157,7 @@ main(int argc, char *argv[])
   	  	}
 	  if (io < 4*obsNumber && io >= 3*obsNumber)
   	  	{
-          dirObs.push_back(obs_temp.at(io));
+          dirObs.push_back(obs_temp.at(io)*PI/180.0); // rad
   	  	}
 	  if (io < 5*obsNumber && io >= 4*obsNumber)
   	  	{
