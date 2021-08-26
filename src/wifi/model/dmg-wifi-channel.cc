@@ -230,7 +230,7 @@ DmgWifiChannel::SVChannelGain(int reflectorDenseMode, Ptr<DmgWifiPhy> sender, Pt
   int lambda_ray; // density of rays within each cluster
   uint16_t granularity = 10;
   double G_sv = 0.0; // return value
-  bool obsRel = false;
+  bool obsRel = true;
  
   // based on the assumption of very narrow beams of the directional antennas
   lambda_K = 2; 
@@ -317,8 +317,8 @@ DmgWifiChannel::SVChannelGain(int reflectorDenseMode, Ptr<DmgWifiPhy> sender, Pt
   double azimuthRx = CalculateAzimuthAngle (receiverMobility->GetPosition (), sender_pos);
   // Antenna gain, get from IEEE 802.11ad direction antenna model
   // double ref_dB_bias = 0.0;
-  double Gtx_dB = 23.18; // init, 17.59; // 14.58 (32 antenna array); very narrow beam,64 antenna array of AP, based on "Capacity of Multi-Connectivity mmWave Systems with Dynamic Blockage and Directional Antennas"
-  double Grx_dB = 0.0; // init, 7.20; // 5.57; // 4 antenna array of client device
+  double Gtx_dB = 5.57; // init
+  double Grx_dB = 0.0; // init
   // double Gtx_dB = senderCodebook->GetTxGainDbi (azimuthTx);
   // double Grx_dB = receiver->GetCodebook ()->GetRxGainDbi (azimuthRx);
   double Gtx_dB_ref = senderCodebook->GetTxGainDbi (azimuthTx); // Gtx_dB;  // senderAnt->GetTxGainDbi (azimuthTx) - ref_dB_bias;
