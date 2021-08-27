@@ -360,7 +360,7 @@ DmgWifiChannel::SVChannelGain(int reflectorDenseMode, Ptr<DmgWifiPhy> sender, Pt
   double mean_r0, var_r0;
   if (reflectorDenseMode == 1) // lower density of highly-reflective objects in the room
   	{
-  	  mean_r0 = 0.5;
+  	  mean_r0 = 0.35;
 	  var_r0 = 0.05;
   	}
   else if (reflectorDenseMode == 2) // medium density of highly-reflective objects in the room
