@@ -317,7 +317,7 @@ DmgWifiChannel::SVChannelGain(int reflectorDenseMode, Ptr<DmgWifiPhy> sender, Pt
   double azimuthRx = CalculateAzimuthAngle (receiverMobility->GetPosition (), sender_pos);
   // Antenna gain, get from IEEE 802.11ad direction antenna model
   // double ref_dB_bias = 0.0;
-  double Gtx_dB = 5.57; // init
+  double Gtx_dB = 23.18; // init
   double Grx_dB = 0.0; // init
   // double Gtx_dB = senderCodebook->GetTxGainDbi (azimuthTx);
   // double Grx_dB = receiver->GetCodebook ()->GetRxGainDbi (azimuthRx);
@@ -360,7 +360,7 @@ DmgWifiChannel::SVChannelGain(int reflectorDenseMode, Ptr<DmgWifiPhy> sender, Pt
   double mean_r0, var_r0;
   if (reflectorDenseMode == 1) // lower density of highly-reflective objects in the room
   	{
-  	  mean_r0 = 0.35;
+  	  mean_r0 = 0.5;
 	  var_r0 = 0.05;
   	}
   else if (reflectorDenseMode == 2) // medium density of highly-reflective objects in the room
