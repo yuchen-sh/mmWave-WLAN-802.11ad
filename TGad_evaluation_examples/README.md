@@ -20,8 +20,7 @@ Description: This script is used to evaluate the performance of office conferenc
 
 ### 4. "TGad_performance_evaluation_enterprise_cubicle.cc"
 
-(will update soon)
-Description: This script is used to evaluate the performance of enterprise cubicle scenario defined in TGad Evaluation document. The scenario consists of several cubicle furniture items, 1 AP (STA 0) and 3 STAs (as an example case). Traffic model used among them includes lightly compressed video, local file transfer, web browsing, and hard disk file trasfer.
+Description: This script is used to evaluate the performance of enterprise cubicle scenario defined in TGad Evaluation document. The scenario consists of several cubicle furniture items, 1 AP (STA 0) and 3 STAs (this is an example case and users can make the customized cases). Traffic model used among them includes lightly compressed video, local file transfer, web browsing, and hard disk file trasfer.
 
 <img id="img1" src="figures/eva_cubicle_room.png" width="450" height="280" align="middle">
 
