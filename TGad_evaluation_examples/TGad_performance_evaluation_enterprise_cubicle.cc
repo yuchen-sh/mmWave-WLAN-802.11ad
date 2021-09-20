@@ -39,7 +39,7 @@
  * STA3 -> STA2 (hard disk file)
 
  * Running Simulation:
- * ./waf --run "TGad_performance_evaluation_cubicle"
+ * ./waf --run "TGad_performance_evaluation_enterprise_cubicle"
  *
  * Simulation Output:
  * 1. LoS/NLoS status (LoS -- 0; NLoS -- 1)
