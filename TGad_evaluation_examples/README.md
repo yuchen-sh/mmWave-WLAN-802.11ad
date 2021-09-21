@@ -24,3 +24,9 @@ Description: This script is used to evaluate the performance of enterprise cubic
 
 <img id="img1" src="figures/eva_cubicle_room.png" width="450" height="280" align="middle">
 
+### 5. "TGad_Rand_scenario.cc"
+
+Description: This script is used to evaluate the performance of random scenario with TGad features. The scenario consists of randomly distributed obstacles and STAs. This is an example case, and users can make the customized cases by simply adjusting related parameters.
+
+<img id="img1" src="figures/eva_Random_scenario.png" width="450" height="280" align="middle">
+
