@@ -8,7 +8,7 @@ Desciption: This script is used to evaluate the network performance in a living 
 
 ### 2. "TGad_performance_evaluation_living_room.cc"
 
-Description: This script is used to evaluate the network performance of a living room scenario defined in TGad Evaluation document. The scenario consists of several furniture items, 1 set-top box (STB) and 1 TV, where uncompressed video traffic is transferred bwtween STB and TV.
+Description: This script is used to evaluate the network performance of a living room scenario defined in TGad Evaluation document. The scenario consists of several furniture items, 1 set-top box (STB) and 1 TV, where uncompressed video traffic is transferred between STB and TV.
 
 <img id="img1" src="figures/eva_living_room.png" width="500" height="280" align="middle">
 
