@@ -1,0 +1,15 @@
+build/
+*.tr
+*.pcap
+*.dat
+*.zip
+*.tar.gz
+*.plt
+*.creator
+*.user
+*.config
+*.files
+*.includes
+*.pyc
+.waf*
+*~
