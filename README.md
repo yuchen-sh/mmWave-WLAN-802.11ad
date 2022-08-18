@@ -8,7 +8,7 @@ In addition to IEEE 802.11ad/ay features as in original Wigig module, this versi
 1. Accurate Line-of-Sight determination function.
 1. Different mmWave-specific channel models.
 1. Add TGad evaluation examples.
-1. Support for multiple access point configurations (under development and continue to update).
+1. Support for multiple access point / reflector configurations (under development and continue to update).
 
 
 
